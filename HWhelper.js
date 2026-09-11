@@ -805,6 +805,15 @@
 				confShow(`${I18N('RUN_SCRIPT')} ${I18N('SYNC')}?`, cheats.refreshGame);
 			},
 		},
+		gearFarm: {
+			get name() {
+				return I18N('GEAR_FARM');
+			},
+			get title() {
+				return I18N('GEAR_FARM_TITLE');
+			},
+			onClick: () => new GearFarmer().start(),
+		},
 		oasloTool: {
 			get name() {
 				return I18N('OASLO_TOOL');
@@ -3502,6 +3511,7 @@
 	function setProgress(text, hide, onclick) {
 		const { ScriptMenu } = HWHClasses;
 		const scriptMenu = ScriptMenu.getInst();
+		clearTimeout(hideTimeoutProgress);
 		scriptMenu.setStatus(text, onclick);
 		hide = hide || false;
 		if (hide) {
@@ -13578,11 +13588,11 @@
 	 * @param {Boolean} isRaids
 	 * @returns
 	 */
-	function testCompany(missions, isRaids = false) {
+	function testCompany(missions, isRaids = false, getMissionLabel = null) {
 		const { ExecuteCompany } = HWHClasses;
 		return new Promise((resolve, reject) => {
 			const tower = new ExecuteCompany(resolve, reject);
-			tower.start(missions, isRaids);
+			tower.start(missions, isRaids, getMissionLabel);
 		});
 	}
 
@@ -13605,9 +13615,10 @@
 			};
 		}
 
-		async start(missionIds, isRaids) {
+		async start(missionIds, isRaids, getMissionLabel = null) {
 			this.missionsIds = missionIds;
 			this.isRaid = isRaids;
+			this.getMissionLabel = getMissionLabel;
 			const data = await Caller.send(['teamGetAll', 'teamGetFavor']);
 			this.startCompany(data);
 		}
@@ -13638,7 +13649,8 @@
 
 			this.argsMission.id = this.missionsIds[this.currentNum].id;
 			this.currentTimes = this.missionsIds[this.currentNum].times;
-			setProgress('Сompany: ' + this.argsMission.id + ' - ' + this.currentTimes, false);
+			const missionLabel = this.getMissionLabel?.(this.argsMission.id) ?? this.argsMission.id;
+			setProgress('Сompany: ' + missionLabel + ' - ' + this.currentTimes, false);
 			if (this.isRaid) {
 				this.missionRaid();
 			} else {
@@ -13709,6 +13721,367 @@
 	}
 
 	this.HWHClasses.ExecuteCompany = ExecuteCompany;
+
+	/** Plans raids for the missing gear of one hero without spending premium currency. */
+	class GearFarmer {
+		getHeroName(heroId) {
+			const key = `LIB_HERO_NAME_${heroId}`;
+			const name = cheats.translate(key);
+			return name && name !== key ? name : `Hero #${heroId}`;
+		}
+
+		getMissionName(missionId) {
+			const key = `LIB_MISSION_NAME_${missionId}`;
+			const name = cheats.translate(key);
+			return name && name !== key ? name : `Mission #${missionId}`;
+		}
+
+		escapeHtml(value) {
+			return String(value).replace(/[&<>"']/g, (character) => ({
+				'&': '&amp;',
+				'<': '&lt;',
+				'>': '&gt;',
+				'"': '&quot;',
+				"'": '&#39;',
+			}[character]));
+		}
+
+		async getHeroIcon(heroId) {
+			GearFarmer.heroIconCache ??= new Map();
+			if (GearFarmer.heroIconCache.has(heroId)) {
+				return GearFarmer.heroIconCache.get(heroId);
+			}
+			const iconPromise = (async () => {
+				try {
+					const textureReference = String(lib.data?.hero?.[heroId]?.iconAssetTexture ?? '');
+					const separator = textureReference.lastIndexOf(':');
+					const atlasKey = (separator > 0 ? textureReference.slice(0, separator) : 'hero_icons_only/hero_icons_only.xml')
+						.replace(/^.*?\/assets\//i, '')
+						.replace(/\.([a-f0-9]{16,})\.xml$/i, '.xml');
+					const textureName = separator >= 0
+						? textureReference.slice(separator + 1)
+						: textureReference.slice(textureReference.lastIndexOf('/') + 1) || `hero_${heroId}`;
+					const gameWindow = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
+					const flashVars = gameWindow.NXFlashVars ?? window.NXFlashVars;
+					const indexUrl = String(flashVars?.index_url?.asset_index ?? '');
+					const staticUrl = String(flashVars?.static_url ?? '').replace(/\/+$/, '');
+					if (!indexUrl || !staticUrl) {
+						return '';
+					}
+					GearFarmer.assetIndexes ??= new Map();
+					if (!GearFarmer.assetIndexes.has(indexUrl)) {
+						GearFarmer.assetIndexes.set(indexUrl, fetch(indexUrl).then(async (response) => indexUrl.toLowerCase().includes('.gz')
+							? new Response(response.body.pipeThrough(new DecompressionStream('gzip'))).json()
+							: response.json()));
+					}
+					const index = await GearFarmer.assetIndexes.get(indexUrl);
+					const atlasPath = index[atlasKey]?.path;
+					if (!atlasPath) {
+						return '';
+					}
+					GearFarmer.atlases ??= new Map();
+					const atlasUrl = `${staticUrl}/assets/${atlasPath}`;
+					if (!GearFarmer.atlases.has(atlasUrl)) {
+						GearFarmer.atlases.set(atlasUrl, fetch(atlasUrl).then((response) => response.text()));
+					}
+					const atlas = await GearFarmer.atlases.get(atlasUrl);
+					const imagePath = atlas.match(/<TextureAtlas\b[^>]*\bimagePath\s*=\s*["'](.*?)["']/i)?.[1];
+					const frame = atlas.match(new RegExp(`<SubTexture\\b(?=[^>]*\\bname\\s*=\\s*["']${textureName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["'])[^>]*>`, 'i'))?.[0];
+					if (!imagePath || !frame) {
+						return '';
+					}
+					const readAttribute = (name) => Number(frame.match(new RegExp(`\\b${name}\\s*=\\s*["'](\\d+)["']`, 'i'))?.[1]);
+					const [x, y, width, height] = ['x', 'y', 'width', 'height'].map(readAttribute);
+					const imageKey = atlasKey.slice(0, atlasKey.lastIndexOf('/') + 1) + imagePath;
+					const imageAssetPath = index[imageKey]?.path;
+					if (!imageAssetPath || !width || !height) {
+						return '';
+					}
+					GearFarmer.images ??= new Map();
+					const imageUrl = `${staticUrl}/assets/${imageAssetPath}`;
+					if (!GearFarmer.images.has(imageUrl)) {
+						GearFarmer.images.set(imageUrl, fetch(imageUrl).then((response) => response.blob()));
+					}
+					const image = await createImageBitmap(await GearFarmer.images.get(imageUrl));
+					const canvas = document.createElement('canvas');
+					canvas.width = width;
+					canvas.height = height;
+					canvas.getContext('2d').drawImage(image, x, y, width, height, 0, 0, width, height);
+					image.close?.();
+					return canvas.toDataURL();
+				} catch (error) {
+					console.warn('Unable to load hero icon', heroId, error);
+					return '';
+				}
+			})();
+			GearFarmer.heroIconCache.set(heroId, iconPromise);
+			return iconPromise;
+		}
+
+		getHeroLabel(hero, icon) {
+			const name = this.getHeroName(hero.id);
+			return icon
+				? `<img src="${icon}" alt="${this.escapeHtml(name)}" style="width:36px;height:36px;object-fit:contain;vertical-align:middle">`
+				: this.escapeHtml(name);
+		}
+
+		getTierSlots(hero) {
+			const tier = lib.data?.hero?.[hero.id]?.color?.[hero.color];
+			return Object.entries(tier?.items ?? {})
+				.map(([slotId, itemId]) => ({ slotId: Number(slotId), itemId: Number(itemId) }))
+				.filter(({ slotId, itemId }) => Number.isFinite(slotId) && itemId > 0);
+		}
+
+		isSlotEquipped(hero, slotId) {
+			return Boolean(hero.slots?.[slotId]);
+		}
+
+		getInventoryAmount(inventory, type, itemId) {
+			return Number(inventory?.[type]?.[itemId]) || 0;
+		}
+
+		getRecipe(type, itemId) {
+			return lib.data?.inventoryItem?.[type]?.[itemId]?.craftRecipe ?? null;
+		}
+
+		buildMissingItems(items, inventory) {
+			const available = structuredClone(inventory ?? {});
+			const targets = new Map();
+			const addItem = (type, itemId, amount, parents = new Set()) => {
+				const key = `${type}:${itemId}`;
+				if (parents.has(key)) {
+					return;
+				}
+				const owned = this.getInventoryAmount(available, type, itemId);
+				const missing = Math.max(0, amount - owned);
+				if (available[type]) {
+					available[type][itemId] = Math.max(0, owned - amount);
+				}
+				if (!missing) {
+					return;
+				}
+				const recipe = this.getRecipe(type, itemId);
+				if (recipe) {
+					const nextParents = new Set(parents).add(key);
+					let hasComponents = false;
+					for (const [componentType, componentIds] of Object.entries(recipe)) {
+						if (componentType === 'gold' || !componentIds || typeof componentIds !== 'object') {
+							continue;
+						}
+						for (const [componentId, componentAmount] of Object.entries(componentIds)) {
+							const count = Number(componentAmount) || 0;
+							if (count > 0) {
+								hasComponents = true;
+								addItem(componentType, Number(componentId), missing * count, nextParents);
+							}
+						}
+					}
+					if (hasComponents) {
+						return;
+					}
+				}
+				const target = targets.get(key) ?? { type, itemId, amount: 0 };
+				target.amount += missing;
+				targets.set(key, target);
+			};
+
+			items.forEach(({ itemId }) => addItem('gear', itemId, 1));
+			return [...targets.values()];
+		}
+
+		getMissionOptions(target, missions) {
+			const options = [];
+			for (const mission of Object.values(missions ?? {})) {
+				const missionId = Number(mission.id);
+				if (!Number.isFinite(missionId) || Number(mission.stars) !== 3) {
+					continue;
+				}
+				const missionData = lib.data?.mission?.[missionId];
+				const normalMode = missionData?.normalMode;
+				const cost = (Number(normalMode?.cost?.stamina) || 0) + (Number(normalMode?.tryCost?.stamina) || 0);
+				if (cost <= 0) {
+					continue;
+				}
+				let expectedYield = 0;
+				for (const wave of Object.values(normalMode?.waves ?? {})) {
+					for (const enemy of Object.values(wave?.enemies ?? {})) {
+						for (const drop of Object.values(enemy?.drop ?? {})) {
+							const amount = Number(drop?.reward?.[target.type]?.[target.itemId]) || 0;
+							const chance = Number(drop?.chance) || 0;
+							expectedYield += amount * (chance > 1 ? chance / 100 : chance);
+						}
+					}
+				}
+				if (expectedYield <= 0) {
+					continue;
+				}
+				const attempts = Number(missionData?.isHeroic) === 1 ? Math.max(0, 3 - (Number(mission.triesSpent) || 0)) : Infinity;
+				if (attempts > 0) {
+					options.push({ id: missionId, cost, expectedYield, attempts });
+				}
+			}
+			return options.sort((left, right) => right.expectedYield / right.cost - left.expectedYield / left.cost || left.cost - right.cost);
+		}
+
+		async start() {
+			if (GearFarmer.running) {
+				return;
+			}
+			GearFarmer.running = true;
+			try {
+				const heroes = Object.values(await Caller.send('heroGetAll'))
+					.filter((hero) => this.getTierSlots(hero).some(({ slotId }) => !this.isSlotEquipped(hero, slotId)))
+					.sort((left, right) => Number(right.power) - Number(left.power));
+				if (!heroes.length) {
+					await popup.confirm(I18N('GEAR_FARM_ALL_EQUIPPED'));
+					return;
+				}
+				const heroIcons = Object.fromEntries(await Promise.all(heroes.map(async (hero) => [hero.id, await this.getHeroIcon(hero.id)])));
+
+				const selected = await popup.confirm(I18N('GEAR_FARM_SELECT_HERO'), [
+					{ msg: I18N('BTN_CANCEL'), result: false, isCancel: true, color: 'red' },
+					{ msg: I18N('BTN_RUN'), result: true, color: 'green' },
+				], heroes.map((hero, index) => ({
+					name: String(hero.id),
+					label: this.getHeroLabel(hero, heroIcons[hero.id]),
+					title: this.getHeroName(hero.id),
+					checked: index === 0,
+					radio: 'gearFarmHero',
+				})));
+				if (!selected) {
+					return;
+				}
+				const heroId = Number(popup.getCheckBoxes().find((checkbox) => checkbox.checked)?.name);
+				const hero = heroes.find((item) => Number(item.id) === heroId);
+				if (!hero) {
+					return;
+				}
+
+				const [inventory, missions, userInfo] = await Caller.send(['inventoryGet', 'missionGetAll', 'userGetInfo']);
+				const vipLevel = Math.max(0, ...Object.values(lib.data?.level?.vip ?? {})
+					.filter((level) => Number(level.vipPoints) <= Number(userInfo.vipPoints))
+					.map((level) => Number(level.level) || 0));
+				const raidBatchSize = 10;
+				const missingSlots = this.getTierSlots(hero).filter(({ slotId }) => !this.isSlotEquipped(hero, slotId));
+				const targets = this.buildMissingItems(missingSlots, inventory);
+				const raids = [];
+				const unavailable = [];
+				targets.forEach((target) => {
+					const mission = this.getMissionOptions(target, missions).find((option) => vipLevel === 0 || option.attempts >= raidBatchSize);
+					if (mission) {
+						const requiredTimes = Math.max(1, Math.ceil(target.amount / mission.expectedYield));
+						const times = vipLevel === 0
+							? Math.min(mission.attempts, requiredTimes)
+							: Math.ceil(Math.max(raidBatchSize, requiredTimes) / raidBatchSize) * raidBatchSize;
+						raids.push({ ...mission, target, times });
+					} else {
+						unavailable.push(target);
+					}
+				});
+				if (!raids.length) {
+					await popup.confirm(I18N('GEAR_FARM_NO_MISSIONS'));
+					return;
+				}
+
+				const details = raids.map(({ id, times, cost }) => I18N('GEAR_FARM_MISSION', { mission: this.getMissionName(id), times, stamina: times * cost })).join('<br>');
+				const energyLimit = Number(await popup.confirm(
+					`${I18N('GEAR_FARM_PLAN', { hero: this.getHeroName(hero.id), slots: missingSlots.length })}<br><br>${details}${vipLevel === 0 ? `<br><br>${I18N('GEAR_FARM_NORMAL_MODE')}` : ''}${unavailable.length ? `<br><br>${I18N('GEAR_FARM_UNAVAILABLE', { count: unavailable.length })}` : ''}`,
+					[
+						{ msg: I18N('BTN_CANCEL'), result: false, isCancel: true, color: 'red' },
+						{ msg: I18N('BTN_RUN'), isInput: true, default: 100, color: 'green' },
+					]
+				));
+				if (!energyLimit || energyLimit < 1) {
+					return;
+				}
+
+				let energyLeft = energyLimit;
+				const plannedRaids = raids.reduce((total, raid) => {
+					const times = vipLevel === 0
+						? Math.min(raid.times, Math.floor(energyLeft / raid.cost))
+						: Math.min(raid.times, Math.floor(energyLeft / (raid.cost * raidBatchSize)) * raidBatchSize);
+					energyLeft -= times * raid.cost;
+					return total + times;
+				}, 0);
+				if (!plannedRaids) {
+					await popup.confirm(I18N('GEAR_FARM_NOT_ENOUGH_ENERGY'));
+					return;
+				}
+				if (vipLevel === 0) {
+					let currentInventory = inventory;
+					let currentMissions = missions;
+					let spent = 0;
+					let runs = 0;
+					while (spent < energyLimit) {
+						const missingItems = this.buildMissingItems(missingSlots, currentInventory);
+						if (!missingItems.length) {
+							break;
+						}
+						const nextMission = missingItems
+							.map((target) => ({ target, mission: this.getMissionOptions(target, currentMissions)[0] }))
+							.filter(({ mission }) => mission && mission.cost <= energyLimit - spent)
+							.sort((left, right) => right.mission.expectedYield / right.mission.cost - left.mission.expectedYield / left.mission.cost)[0];
+						if (!nextMission) {
+							break;
+						}
+						const { mission } = nextMission;
+						setProgress(I18N('GEAR_FARM_NORMAL_PROGRESS', {
+							runs: runs + 1,
+							stamina: spent + mission.cost,
+							limit: energyLimit,
+						}), false);
+						await testCompany([{ id: mission.id, times: 1 }], false, (id) => this.getMissionName(id));
+						[currentInventory, currentMissions] = await Caller.send(['inventoryGet', 'missionGetAll']);
+						spent += mission.cost;
+						runs++;
+					}
+					setProgress(I18N('GEAR_FARM_DONE', { raids: runs, stamina: spent }), true);
+					return;
+				}
+				let spent = 0;
+				let raidsDone = 0;
+				for (const raid of raids) {
+					const availableRaids = Math.floor((energyLimit - spent) / (raid.cost * raidBatchSize)) * raidBatchSize;
+					const times = Math.min(raid.times, availableRaids);
+					if (!times) {
+						break;
+					}
+					let remaining = times;
+					while (remaining > 0) {
+						const batch = raidBatchSize;
+						setProgress(I18N('GEAR_FARM_PROGRESS', {
+							mission: this.getMissionName(raid.id),
+							done: raidsDone + batch,
+							total: plannedRaids,
+							stamina: spent + batch * raid.cost,
+							limit: energyLimit,
+						}), false);
+						await Caller.send({ name: 'missionRaid', args: { id: raid.id, times: batch } });
+						remaining -= batch;
+						spent += batch * raid.cost;
+						raidsDone += batch;
+					}
+				}
+				setProgress(I18N('GEAR_FARM_DONE', { raids: raidsDone, stamina: spent }), true);
+			} catch (error) {
+				console.error('Gear farm failed', error);
+				const details = String(error?.message ?? error).replace(/[&<>"']/g, (character) => ({
+					'&': '&amp;',
+					'<': '&lt;',
+					'>': '&gt;',
+					'"': '&quot;',
+					"'": '&#39;',
+				}[character]));
+				const message = `${I18N('GEAR_FARM_ERROR')}<br><small>${details}</small>`;
+				setProgress(message, false, hideProgress);
+				await popup.confirm(message);
+			} finally {
+				GearFarmer.running = false;
+			}
+		}
+	}
+
+	this.HWHClasses.GearFarmer = GearFarmer;
 	class InventoryTidier {
 		inventory = {};
 
