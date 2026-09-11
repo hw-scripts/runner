@@ -18,6 +18,7 @@
 // @run-at			document-start
 // @grant			GM_xmlhttpRequest
 // @connect			tools.oaslo.com
+// @connect			raw.githubusercontent.com
 // @downloadURL https://update.greasyfork.org/scripts/450693/HeroWarsHelper.user.js
 // @updateURL https://update.greasyfork.org/scripts/450693/HeroWarsHelper.meta.js
 // ==/UserScript==
@@ -310,822 +311,82 @@ this.Send = function (json, pr) {
 }
 
 this.xyz = (({ name, version, author }) => ({ name, version, author }))(GM_info.script);
-const i18nLangData = {
-	/* English translation by BaBa */
-	en: {
-		/* Checkboxes */
-		SKIP_FIGHTS: 'Skip battle',
-		SKIP_FIGHTS_TITLE: 'Skip battle in Outland and the arena of the titans, auto-pass in the tower and campaign',
-		ENDLESS_CARDS: 'Infinite cards',
-		ENDLESS_CARDS_TITLE: 'Disable Divination Cards wasting',
-		AUTO_EXPEDITION: 'Auto Expedition',
-		AUTO_EXPEDITION_TITLE: 'Auto-sending expeditions',
-		CANCEL_FIGHT: 'Cancel battle',
-		CANCEL_FIGHT_TITLE: 'Ability to cancel manual combat on GW, CoW and Asgard',
-		GIFTS: 'Gifts',
-		GIFTS_TITLE: 'Collect gifts automatically',
-		BATTLE_RECALCULATION: 'Battle recalculation',
-		BATTLE_RECALCULATION_TITLE: 'Preliminary calculation of the battle',
-		QUANTITY_CONTROL: 'Quantity control',
-		QUANTITY_CONTROL_TITLE: 'Ability to specify the number of opened "lootboxes"',
-		REPEAT_CAMPAIGN: 'Repeat missions',
-		REPEAT_CAMPAIGN_TITLE: 'Auto-repeat battles in the campaign',
-		DISABLE_DONAT: 'Disable donation',
-		DISABLE_DONAT_TITLE: 'Removes all donation offers',
-		DAILY_QUESTS: 'Quests',
-		DAILY_QUESTS_TITLE: 'Complete daily quests',
-		AUTO_QUIZ: 'AutoQuiz',
-		AUTO_QUIZ_TITLE: 'Automatically receive correct answers to quiz questions',
-		SECRET_WEALTH_CHECKBOX: 'Automatic purchase in the store "Secret Wealth" when entering the game',
-		HIDE_SERVERS: 'Collapse servers',
-		HIDE_SERVERS_TITLE: 'Hide unused servers',
-		/* Input fields */
-		HOW_MUCH_TITANITE: 'How much titanite to farm',
-		COMBAT_SPEED: 'Combat Speed Multiplier',
-		NUMBER_OF_TEST: 'Number of test fights',
-		NUMBER_OF_AUTO_BATTLE: 'Number of auto-battle attempts',
-		/* Buttons */
-		RUN_SCRIPT: 'Run the',
-		TO_DO_EVERYTHING: 'Do All',
-		TO_DO_EVERYTHING_TITLE: 'Perform multiple actions of your choice',
-		OUTLAND: 'Outland',
-		OUTLAND_TITLE: 'Collect Outland',
-		TITAN_ARENA: 'ToE',
-		TITAN_ARENA_TITLE: 'Complete the titan arena',
-		DUNGEON: 'Dungeon',
-		DUNGEON_TITLE: 'Go through the dungeon',
-		SEER: 'Seer',
-		SEER_TITLE: 'Roll the Seer',
-		TOWER: 'Tower',
-		TOWER_TITLE: 'Pass the tower',
-		EXPEDITIONS: 'Expeditions',
-		EXPEDITIONS_TITLE: 'Sending and collecting expeditions',
-		SYNC: 'Sync',
-		SYNC_TITLE: 'Partial synchronization of game data without reloading the page',
-		OASLO_TOOL: 'Launch sleep upgrade',
-		OASLO_TOOL_TITLE: 'Open Hero Wars oaslo Tool in the current browser session',
-		ARCHDEMON: 'Archdemon',
-		ARCHDEMON_TITLE: 'Hitting kills and collecting rewards',
-		ESTER_EGGS: 'Easter eggs',
-		ESTER_EGGS_TITLE: 'Collect all Easter eggs or rewards',
-		REWARDS: 'Rewards',
-		REWARDS_TITLE: 'Collect all quest rewards',
-		MAIL: 'Mail',
-		MAIL_TITLE: 'Collect all mail, except letters with energy and charges of the portal',
-		MINIONS: 'Minions',
-		MINIONS_TITLE: 'Attack minions with saved packs',
-		ADVENTURE: 'Adv.',
-		ADVENTURE_TITLE: 'Passes the adventure along the specified route',
-		STORM: 'Storm',
-		STORM_TITLE: 'Passes the Storm along the specified route',
-		SANCTUARY: 'Sanctuary',
-		SANCTUARY_TITLE: 'Fast travel to Sanctuary',
-		GUILD_WAR: 'Guild War',
-		GUILD_WAR_TITLE: 'Fast travel to Guild War',
-		SECRET_WEALTH: 'Secret Wealth',
-		SECRET_WEALTH_TITLE: 'Buy something in the store "Secret Wealth"',
-		/* Misc */
-		BOTTOM_URLS:
-			'<a href="https://t.me/+0oMwICyV1aQ1MDAy" target="_blank" title="Telegram"><svg width="20" height="20" style="margin:2px" viewBox="0 0 1e3 1e3" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="a" x1="50%" x2="50%" y2="99.258%"><stop stop-color="#2AABEE" offset="0"/><stop stop-color="#229ED9" offset="1"/></linearGradient></defs><g fill-rule="evenodd"><circle cx="500" cy="500" r="500" fill="url(#a)"/><path d="m226.33 494.72c145.76-63.505 242.96-105.37 291.59-125.6 138.86-57.755 167.71-67.787 186.51-68.119 4.1362-0.072862 13.384 0.95221 19.375 5.8132 5.0584 4.1045 6.4501 9.6491 7.1161 13.541 0.666 3.8915 1.4953 12.756 0.83608 19.683-7.5246 79.062-40.084 270.92-56.648 359.47-7.0089 37.469-20.81 50.032-34.17 51.262-29.036 2.6719-51.085-19.189-79.207-37.624-44.007-28.847-68.867-46.804-111.58-74.953-49.366-32.531-17.364-50.411 10.769-79.631 7.3626-7.6471 135.3-124.01 137.77-134.57 0.30968-1.3202 0.59708-6.2414-2.3265-8.8399s-7.2385-1.7099-10.352-1.0032c-4.4137 1.0017-74.715 47.468-210.9 139.4-19.955 13.702-38.029 20.379-54.223 20.029-17.853-0.3857-52.194-10.094-77.723-18.393-31.313-10.178-56.199-15.56-54.032-32.846 1.1287-9.0037 13.528-18.212 37.197-27.624z" fill="#fff"/></g></svg></a><a href="https://www.patreon.com/HeroWarsUserScripts" target="_blank" title="Patreon"><svg width="20" height="20" viewBox="0 0 1080 1080" xmlns="http://www.w3.org/2000/svg"><g fill="#FFF" stroke="None"><path d="m1033 324.45c-0.19-137.9-107.59-250.92-233.6-291.7-156.48-50.64-362.86-43.3-512.28 27.2-181.1 85.46-237.99 272.66-240.11 459.36-1.74 153.5 13.58 557.79 241.62 560.67 169.44 2.15 194.67-216.18 273.07-321.33 55.78-74.81 127.6-95.94 216.01-117.82 151.95-37.61 255.51-157.53 255.29-316.38z"/></g></svg></a>',
-		GIFTS_SENT: 'Gifts sent!',
-		DO_YOU_WANT: 'Do you really want to do this?',
-		BTN_RUN: 'Run',
-		BTN_CANCEL: 'Cancel',
-		BTN_ACCEPT: 'Accept',
-		BTN_OK: 'OK',
-		MSG_HAVE_BEEN_DEFEATED: 'You have been defeated!',
-		BTN_AUTO: 'Auto',
-		MSG_YOU_APPLIED: 'You applied',
-		MSG_DAMAGE: 'damage',
-		MSG_CANCEL_AND_STAT: 'Auto (F5) and show statistic',
-		MSG_REPEAT_MISSION: 'Repeat the mission?',
-		BTN_REPEAT: 'Repeat',
-		BTN_NO: 'No',
-		MSG_SPECIFY_QUANT: 'Specify Quantity:',
-		BTN_OPEN: 'Open',
-		QUESTION_COPY: 'Question copied to clipboard',
-		ANSWER_KNOWN: 'The answer is known',
-		ANSWER_NOT_KNOWN: 'ATTENTION THE ANSWER IS NOT KNOWN',
-		BEING_RECALC: 'The battle is being recalculated',
-		THIS_TIME: 'This time',
-		VICTORY: '<span style="color:green;">VICTORY</span>',
-		DEFEAT: '<span style="color:red;">DEFEAT</span>',
-		CHANCE_TO_WIN: 'Chance to win <span style="color: red;">based on pre-calculation</span>',
-		OPEN_DOLLS: 'nesting dolls recursively',
-		SENT_QUESTION: 'Question sent',
-		SETTINGS: 'Settings',
-		MSG_BAN_ATTENTION: '<p style="color:red;">Using this feature may result in a ban.</p> Continue?',
-		BTN_YES_I_AGREE: 'Yes, I understand the risks!',
-		BTN_NO_I_AM_AGAINST: 'No, I refuse it!',
-		VALUES: 'Values',
-		EXPEDITIONS_SENT: 'Expeditions:<br>Collected: {countGet}<br>Sent: {countSend}',
-		EXPEDITIONS_NOTHING: 'Nothing to collect/send',
-		EXPEDITIONS_NOTTIME: 'It is not time for expeditions',
-		TITANIT: 'Titanit',
-		COMPLETED: 'completed',
-		FLOOR: 'Floor',
-		LEVEL: 'Level',
-		BATTLES: 'battles',
-		EVENT: 'Event',
-		NOT_AVAILABLE: 'not available',
-		NO_HEROES: 'No heroes',
-		DAMAGE_AMOUNT: 'Damage amount',
-		NOTHING_TO_COLLECT: 'Nothing to collect',
-		COLLECTED: 'Collected',
-		REWARD: 'rewards',
-		REMAINING_ATTEMPTS: 'Remaining attempts',
-		BATTLES_CANCELED: 'Battles canceled',
-		MINION_RAID: 'Minion Raid',
-		STOPPED: 'Stopped',
-		REPETITIONS: 'Repetitions',
-		MISSIONS_PASSED: 'Missions passed',
-		STOP: 'stop',
-		TOTAL_OPEN: 'Total open',
-		OPEN: 'Open',
-		ROUND_STAT: 'Damage statistics for ',
-		BATTLE: 'battles',
-		MINIMUM: 'Minimum',
-		MAXIMUM: 'Maximum',
-		AVERAGE: 'Average',
-		NOT_THIS_TIME: 'Not this time',
-		RETRY_LIMIT_EXCEEDED: 'Retry limit exceeded',
-		SUCCESS: 'Success',
-		RECEIVED: 'Received',
-		LETTERS: 'letters',
-		PORTALS: 'portals',
-		ATTEMPTS: 'attempts',
-		/* Quests */
-		QUEST_10001: 'Upgrade the skills of heroes 3 times',
-		QUEST_10002: 'Complete 10 missions',
-		QUEST_10003: 'Complete 3 heroic missions',
-		QUEST_10004: 'Fight 3 times in the Arena or Grand Arena',
-		QUEST_10006: 'Use the exchange of emeralds 1 time',
-		QUEST_10007: 'Perform 1 summon in the Soul Atrium',
-		QUEST_10016: 'Send gifts to guildmates',
-		QUEST_10018: 'Use an experience potion',
-		QUEST_10019: 'Open 1 chest in the Tower',
-		QUEST_10020: 'Open 3 chests in Outland',
-		QUEST_10021: 'Collect 75 Titanite in the Guild Dungeon',
-		QUEST_10021: 'Collect 150 Titanite in the Guild Dungeon',
-		QUEST_10023: 'Upgrade Gift of the Elements by 1 level',
-		QUEST_10024: 'Level up any artifact once',
-		QUEST_10025: 'Start Expedition 1',
-		QUEST_10026: 'Start 4 Expeditions',
-		QUEST_10027: 'Win 1 battle of the Tournament of Elements',
-		QUEST_10028: 'Level up any titan artifact',
-		QUEST_10029: 'Unlock the Orb of Titan Artifacts',
-		QUEST_10030: 'Upgrade any Skin of any hero 1 time',
-		QUEST_10031: 'Win 6 battles of the Tournament of Elements',
-		QUEST_10043: 'Start or Join an Adventure',
-		QUEST_10044: 'Use Summon Pets 1 time',
-		QUEST_10046: 'Open 3 chests in Adventure',
-		QUEST_10047: 'Get 150 Guild Activity Points',
-		NOTHING_TO_DO: 'Nothing to do',
-		YOU_CAN_COMPLETE: 'You can complete quests',
-		BTN_DO_IT: 'Do it',
-		NOT_QUEST_COMPLETED: 'Not a single quest completed',
-		COMPLETED_QUESTS: 'Completed quests',
-		/* everything button */
-		ASSEMBLE_OUTLAND: 'Assemble Outland',
-		PASS_THE_TOWER: 'Pass the tower',
-		CHECK_EXPEDITIONS: 'Check Expeditions',
-		COMPLETE_TOE: 'Complete ToE',
-		COMPLETE_DUNGEON: 'Complete the dungeon',
-		COLLECT_MAIL: 'Collect mail',
-		COLLECT_MISC: 'Collect some bullshit',
-		COLLECT_MISC_TITLE: 'Collect Easter Eggs, Skin Gems, Keys, Arena Coins and Soul Crystal',
-		COLLECT_QUEST_REWARDS: 'Collect quest rewards',
-		MAKE_A_SYNC: 'Make a sync',
+const scriptLanguages = ['en', 'uk', 'ru'];
+const scriptLanguageStorageKey = GM_info.script.name + ':language';
+const i18nLangData = {};
+const i18nRepositoryUrl = 'https://raw.githubusercontent.com/yuriimouse/runner/master/i18n';
+const i18nCacheKeyPrefix = GM_info.script.name + ':i18n:';
 
-		RUN_FUNCTION: 'Run the following functions?',
-		BTN_GO: 'Go!',
-		PERFORMED: 'Performed',
-		DONE: 'Done',
-		ERRORS_OCCURRES: 'Errors occurred while executing',
-		COPY_ERROR: 'Copy error information to clipboard',
-		BTN_YES: 'Yes',
-		ALL_TASK_COMPLETED: 'All tasks completed',
+function requestLanguageDictionary(language) {
+	return new Promise((resolve, reject) => {
+		GM_xmlhttpRequest({
+			method: 'GET',
+			url: `${i18nRepositoryUrl}/${language}.json`,
+			onload: (response) => {
+				if (!response.status.toString().startsWith('2')) {
+					reject(new Error(`Unable to load ${language} dictionary: HTTP ${response.status}`));
+					return;
+				}
+				try {
+					resolve(JSON.parse(response.responseText));
+				} catch (error) {
+					reject(new Error(`Invalid ${language} dictionary`));
+				}
+			},
+			onerror: () => reject(new Error(`Unable to load ${language} dictionary`)),
+		});
+	});
+}
 
-		UNKNOWN: 'unknown',
-		ENTER_THE_PATH: 'Enter the path of adventure using commas or dashes',
-		START_ADVENTURE: 'Start your adventure along this path!',
-		INCORRECT_WAY: 'Incorrect path in adventure: {from} -> {to}',
-		BTN_CANCELED: 'Canceled',
-		MUST_TWO_POINTS: 'The path must contain at least 2 points.',
-		MUST_ONLY_NUMBERS: 'The path must contain only numbers and commas',
-		NOT_ON_AN_ADVENTURE: 'You are not on an adventure',
-		YOU_IN_NOT_ON_THE_WAY: 'Your location is not on the way',
-		ATTEMPTS_NOT_ENOUGH: 'Your attempts are not enough to complete the path, continue?',
-		YES_CONTINUE: 'Yes, continue!',
-		NOT_ENOUGH_AP: 'Not enough action points',
-		ATTEMPTS_ARE_OVER: 'The attempts are over',
-		MOVES: 'Moves',
-		BUFF_GET_ERROR: 'Buff getting error',
-		BATTLE_END_ERROR: 'Battle end error',
-		AUTOBOT: 'Autobot',
-		FAILED_TO_WIN_AUTO: 'Failed to win the auto battle',
-		ERROR_OF_THE_BATTLE_COPY: 'An error occurred during the passage of the battle<br>Copy the error to the clipboard?',
-		ERROR_DURING_THE_BATTLE: 'Error during the battle',
-		NO_CHANCE_WIN: 'No chance of winning this fight: 0/',
-		LOST_HEROES: 'You have won, but you have lost one or several heroes',
-		VICTORY_IMPOSSIBLE: 'Is victory impossible, should we focus on the result?',
-		FIND_COEFF: 'Find the coefficient greater than',
-		BTN_PASS: 'PASS',
-		BRAWLS: 'Brawls',
-		BRAWLS_TITLE: 'Activates the ability to auto-brawl',
-		START_AUTO_BRAWLS: 'Start Auto Brawls?',
-		LOSSES: 'Losses',
-		WINS: 'Wins',
-		FIGHTS: 'Fights',
-		STAGE: 'Stage',
-		DONT_HAVE_LIVES: "You don't have lives",
-		LIVES: 'Lives',
-		SECRET_WEALTH_ALREADY: 'Item for Pet Potions already purchased',
-		SECRET_WEALTH_NOT_ENOUGH: 'Not Enough Pet Potion, You Have {available}, Need {need}',
-		SECRET_WEALTH_UPGRADE_NEW_PET: 'After purchasing the Pet Potion, it will not be enough to upgrade a new pet',
-		SECRET_WEALTH_PURCHASED: 'Purchased {count} {name}',
-		SECRET_WEALTH_CANCELED: 'Secret Wealth: Purchase Canceled',
-		SECRET_WEALTH_BUY: 'You have {available} Pet Potion.<br>Do you want to buy {countBuy} {name} for {price} Pet Potion?',
-		DAILY_BONUS: 'Daily bonus',
-		DO_DAILY_QUESTS: 'Do daily quests',
-		ACTIONS: 'Actions',
-		ACTIONS_TITLE: 'Dialog box with various actions',
-		OTHERS: 'Others',
-		OTHERS_TITLE: 'Others',
-		CHOOSE_ACTION: 'Choose an action',
-		OPEN_LOOTBOX: 'You have {lootBox} boxes, should we open them?',
-		STAMINA: 'Energy',
-		BOXES_OVER: 'The boxes are over',
-		NO_BOXES: 'No boxes',
-		NO_MORE_ACTIVITY: 'No more activity for items today',
-		EXCHANGE_ITEMS: 'Exchange items for activity points (max {maxActive})?',
-		GET_ACTIVITY: 'Get Activity',
-		NOT_ENOUGH_ITEMS: 'Not enough items',
-		ACTIVITY_RECEIVED: 'Activity received',
-		NO_PURCHASABLE_HERO_SOULS: 'No purchasable Hero Souls',
-		PURCHASED_HERO_SOULS: 'Purchased {countHeroSouls} Hero Souls',
-		NOT_ENOUGH_EMERALDS_540: 'Not enough emeralds, you need {imgEmerald}540 you have {imgEmerald}{currentStarMoney}',
-		BUY_OUTLAND_BTN: 'Buy {count} chests {imgEmerald}{countEmerald}',
-		CHESTS_NOT_AVAILABLE: 'Chests not available',
-		OUTLAND_CHESTS_RECEIVED: 'Outland chests received',
-		RAID_NOT_AVAILABLE: 'The raid is not available or there are no spheres',
-		RAID_ADVENTURE: 'Raid {adventureId} adventure!',
-		SOMETHING_WENT_WRONG: 'Something went wrong',
-		ADVENTURE_COMPLETED: 'Adventure {adventureId} completed {times} times',
-		CLAN_STAT_COPY: 'Clan statistics copied to clipboard',
-		GET_ENERGY: 'Get Energy',
-		GET_ENERGY_TITLE: 'Opens platinum boxes one at a time until you get 250 energy',
-		ITEM_EXCHANGE: 'Item Exchange',
-		ITEM_EXCHANGE_TITLE: 'Exchanges items for the specified amount of activity',
-		BUY_SOULS: 'Buy souls',
-		BUY_SOULS_TITLE: 'Buy hero souls from all available shops',
-		BUY_OUTLAND: 'Buy Outland',
-		BUY_OUTLAND_TITLE: 'Buy 9 chests in Outland for 540 emeralds',
-		RAID: 'Raid',
-		AUTO_RAID_ADVENTURE: 'Raid',
-		AUTO_RAID_ADVENTURE_TITLE: 'Raid adventure set number of times',
-		CLAN_STAT: 'Clan statistics',
-		CLAN_STAT_TITLE: 'Copies clan statistics to the clipboard',
-		BTN_AUTO_F5: 'Auto (F5)',
-		BOSS_DAMAGE: 'Boss Damage: ',
-		NOTHING_BUY: 'Nothing to buy',
-		LOTS_BOUGHT: '{countBuy} lots bought for gold',
-		BUY_FOR_GOLD: 'Buy for gold',
-		BUY_FOR_GOLD_TITLE: 'Buy items for gold in the Town Shop and in the Pet Soul Stone Shop',
-		REWARDS_AND_MAIL: 'Rewards and Mail',
-		REWARDS_AND_MAIL_TITLE: 'Collects rewards and mail',
-		COLLECT_REWARDS_AND_MAIL: 'Collected {countQuests} rewards and {countMail} letters',
-		TIMER_ALREADY: 'Timer already started {time}',
-		NO_ATTEMPTS_TIMER_START: 'No attempts, timer started {time}',
-		EPIC_BRAWL_RESULT: 'Wins: {wins}/{attempts}, Coins: {coins}, Streak: {progress}/{nextStage} [Close]{end}',
-		ATTEMPT_ENDED: '<br>Attempts ended, timer started {time}',
-		EPIC_BRAWL: 'Cosmic Battle',
-		EPIC_BRAWL_TITLE: 'Spends attempts in the Cosmic Battle',
-		RELOAD_GAME: 'Reload game',
-		TIMER: 'Timer:',
-		SHOW_ERRORS: 'Show errors',
-		SHOW_ERRORS_TITLE: 'Show server request errors',
-		ERROR_MSG: 'Error: {name}<br>{description}',
-		EVENT_AUTO_BOSS:
-			'Maximum number of battles for calculation:</br>{length} ∗ {countTestBattle} = {maxCalcBattle}</br>If you have a weak computer, it may take a long time for this, click on the cross to cancel.</br>Should I search for the best pack from all or the first suitable one?',
-		BEST_SLOW: 'Best (slower)',
-		FIRST_FAST: 'First (faster)',
-		FREEZE_INTERFACE: 'Calculating... <br>The interface may freeze.',
-		ERROR_F12: 'Error, details in the console (F12)',
-		FAILED_FIND_WIN_PACK: 'Failed to find a winning pack',
-		BEST_PACK: 'Best pack:',
-		BOSS_HAS_BEEN_DEF: 'Boss {bossLvl} has been defeated.',
-		NOT_ENOUGH_ATTEMPTS_BOSS: 'Not enough attempts to defeat boss {bossLvl}, retry?',
-		BOSS_VICTORY_IMPOSSIBLE:
-			'Based on the recalculation of {battles} battles, victory has not been achieved. Would you like to continue the search for a winning battle in real battles?',
-		BOSS_HAS_BEEN_DEF_TEXT:
-			'Boss {bossLvl} defeated in<br>{countBattle}/{countMaxBattle} attempts{winTimer}<br>(Please synchronize or restart the game to update the data)',
-		MAP: 'Map: ',
-		PLAYER_POS: 'Player positions:',
-		NY_GIFTS: 'Gifts',
-		NY_GIFTS_TITLE: "Open all New Year's gifts",
-		NY_NO_GIFTS: 'No gifts not received',
-		NY_GIFTS_COLLECTED: '{count} gifts collected',
-		CHANGE_MAP: 'Island map',
-		CHANGE_MAP_TITLE: 'Change island map',
-		SELECT_ISLAND_MAP: 'Select an island map:',
-		MAP_NUM: 'Map {num}',
-		SECRET_WEALTH_SHOP: 'Secret Wealth {name}: ',
-		SHOPS: 'Shops',
-		SHOPS_DEFAULT: 'Default',
-		SHOPS_DEFAULT_TITLE: 'Default stores',
-		SHOPS_LIST: 'Shops {number}',
-		SHOPS_LIST_TITLE: 'List of shops {number}',
-		SHOPS_WARNING:
-			'Stores<br><span style="color:red">If you buy brawl store coins for emeralds, you must use them immediately, otherwise they will disappear after restarting the game!</span>',
-		MINIONS_WARNING: 'The hero packs for attacking minions are incomplete, should I continue?',
-		FAST_SEASON: 'Fast season',
-		FAST_SEASON_TITLE: 'Skip the map selection screen in a season',
-		SET_NUMBER_LEVELS: 'Specify the number of levels:',
-		POSSIBLE_IMPROVE_LEVELS: 'It is possible to improve only {count} levels.<br>Improving?',
-		NOT_ENOUGH_RESOURECES: 'Not enough resources',
-		IMPROVED_LEVELS: 'Improved levels: {count}',
-		ARTIFACTS_UPGRADE: 'Artifacts Upgrade',
-		ARTIFACTS_UPGRADE_TITLE: 'Upgrades the specified amount of the cheapest hero artifacts',
-		SKINS_UPGRADE: 'Skins Upgrade',
-		SKINS_UPGRADE_TITLE: 'Upgrades the specified amount of the cheapest hero skins',
-		HINT: '<br>Hint: ',
-		PICTURE: '<br>Picture: ',
-		ANSWER: '<br>Answer: ',
-		NO_HEROES_PACK: 'Fight at least one battle to save the attacking team',
-		BRAWL_AUTO_PACK: 'Automatic selection of packs',
-		BRAWL_AUTO_PACK_NOT_CUR_HERO: 'Automatic pack selection is not suitable for the current hero',
-		BRAWL_DAILY_TASK_COMPLETED: 'Daily task completed, continue attacking?',
-		CALC_STAT: 'Calculate statistics',
-		ELEMENT_TOURNAMENT_REWARD: 'Unclaimed bonus for Elemental Tournament',
-		BTN_TRY_FIX_IT: 'Fix it',
-		BTN_TRY_FIX_IT_TITLE: 'Enable auto attack combat correction',
-		DAMAGE_FIXED: 'Damage fixed from {lastDamage} to {maxDamage}!',
-		DAMAGE_NO_FIXED: 'Failed to fix damage: {lastDamage}',
-		LETS_FIX: "Let's fix",
-		COUNT_FIXED: 'For {count} attempts',
-		DEFEAT_TURN_TIMER: 'Defeat! Turn on the timer to complete the mission?',
-		SEASON_REWARD: 'Season Rewards',
-		SEASON_REWARD_TITLE: 'Collects available free rewards from all current seasons',
-		SEASON_REWARD_COLLECTED: 'Collected {count} season rewards',
-		SELL_HERO_SOULS: 'Sell ​​souls',
-		SELL_HERO_SOULS_TITLE: 'Exchanges all absolute star hero souls for gold',
-		GOLD_RECEIVED: 'Gold received: {gold}',
-		SERVER_NOT_ACCEPT: 'The server did not accept the result',
-		INVASION_BOSS_BUFF: 'For {bossLvl} boss need buff {needBuff} you have {haveBuff}',
-		HERO_POWER: 'Hero Power',
-		HERO_POWER_TITLE: 'Displays the current and maximum power of heroes',
-		MAX_POWER_REACHED: 'Maximum power reached: {power}',
-		CURRENT_POWER: 'Current power: {power}',
-		POWER_TO_MAX: 'Power left to reach maximum: <span style="color:{color};">{power}</span><br>',
-		BEST_RESULT: 'Best result: {value}%',
-		GUILD_ISLAND_TITLE: 'Fast travel to Guild Island',
-		TITAN_VALLEY_TITLE: 'Fast travel to Titan Valley',
-		EXTENSIONS: 'Extensions',
-		EXTENSIONS_TITLE: 'Extensions for the script',
-		EXTENSIONS_LIST_TITLE: 'Extensions for the script',
-		EVENT_IS_OVER: 'Event is over',
-		SET_COUNT_KILLS: 'Set the number of enemies that need to be killed today:',
-		MORE_ENEMIES_KILLED: 'Already killed more than {countKills} enemies',
-		RESTART_TRY_AGAIN_LATER: 'Restart the game and try again later',
-		ENEMIES_KILLED_AND_HEROES_USED: 'Number of enemies killed: {score}<br>Used {count} heroes',
-		FURNACE_OF_SOULS: 'Furnace',
-		PUMPKINS: 'Pumps',
-		PUMPKINS_TITLE: 'Exchange all Ghost Energy for Spirit Festival Coins',
-		PUMPKINS_RUN: 'Exchange all Ghost Energy for Spirit Festival Coins?',
-		TIDY_INVENTORY: 'Tidy Inventory',
-		TIDY_INVENTORY_TITLE: 'Tidy Inventory',
-		EQUIPMENT_FRAGMENT_CRATES: 'Equipment Fragment Crates',
-		EQUIPMENT_FRAGMENT_CRATES_TITLE: 'Open all equipment fragment crates',
-		RAND_NUGGETS_AND_REGAL: 'Random Crystals and Insignia',
-		RAND_NUGGETS_AND_REGAL_TITLE: 'Open random Crystals and Insignia',
-		ARTIFACT_RESOURCES: 'Artifact Resources',
-		ARTIFACT_RESOURCES_TITLE: 'Open chests with artifact essences, scrolls, metals',
-		USE_KEYBOARD: 'Enter the value using the keyboard',
-		SEERGAME: 'Seer Game',
-		SEERGAME_TITLE: 'Completes main quests for the "Seer Game" event',
-		SEERGAME_MSG:
-			'This script does not allow you to win the game. It only completes the quest of winning 30 times in automatic mode by repeatedly playing the first 6 rounds until it achieves 30 consecutive wins. The probability of completing the quest this way is very high, but not 100%. If you are very unlucky, you may lose coins and fail the quest. Good luck!',
-		SEERGAME_NOT_ENOUGH_COINS_CONTINUE: 'Not enough coins to continue the game in case of a mistake. You can continue playing manually.',
-		SEERGAME_NOT_ENOUGH_COINS_START: 'Not enough coins to start the game',
-		SEERGAME_SUCCESS: 'Success! Continuing the game...',
-		SEERGAME_FAILURE: 'Failure!',
-		SEERGAME_CONTINUE: 'Continuing the game for {cost} coins',
-		SEERGAME_NEW: 'Starting! Coins: {coins}',
-		SEERGAME_START: 'Starting a new game for {cost} coins',
-		SEERGAME_END: 'Ending the game and claiming rewards',
-		SEERGAME_FINISH: 'SeerGame completed, spent {spentCoins} coins',
-		SEERGAME_RESTART: 'Restarting the game...',
-		SEERGAME_PROGRESS: 'Round {round}, Consecutive wins: {streak}',
-	},
-	ru: {
-		/* Checkboxes */
-		SKIP_FIGHTS: 'Пропуск боев',
-		SKIP_FIGHTS_TITLE: 'Пропуск боев в запределье и арене титанов, автопропуск в башне и кампании',
-		ENDLESS_CARDS: 'Бесконечные карты',
-		ENDLESS_CARDS_TITLE: 'Отключить трату карт предсказаний',
-		AUTO_EXPEDITION: 'АвтоЭкспедиции',
-		AUTO_EXPEDITION_TITLE: 'Автоотправка экспедиций',
-		CANCEL_FIGHT: 'Отмена боя',
-		CANCEL_FIGHT_TITLE: 'Возможность отмены ручного боя на ВГ, СМ и в Асгарде',
-		GIFTS: 'Подарки',
-		GIFTS_TITLE: 'Собирать подарки автоматически',
-		BATTLE_RECALCULATION: 'Прерасчет боя',
-		BATTLE_RECALCULATION_TITLE: 'Предварительный расчет боя',
-		QUANTITY_CONTROL: 'Контроль кол-ва',
-		QUANTITY_CONTROL_TITLE: 'Возможность указывать количество открываемых "лутбоксов"',
-		REPEAT_CAMPAIGN: 'Повтор в кампании',
-		REPEAT_CAMPAIGN_TITLE: 'Автоповтор боев в кампании',
-		DISABLE_DONAT: 'Отключить донат',
-		DISABLE_DONAT_TITLE: 'Убирает все предложения доната',
-		DAILY_QUESTS: 'Квесты',
-		DAILY_QUESTS_TITLE: 'Выполнять ежедневные квесты',
-		AUTO_QUIZ: 'АвтоВикторина',
-		AUTO_QUIZ_TITLE: 'Автоматическое получение правильных ответов на вопросы викторины',
-		SECRET_WEALTH_CHECKBOX: 'Автоматическая покупка в магазине "Тайное Богатство" при заходе в игру',
-		HIDE_SERVERS: 'Свернуть сервера',
-		HIDE_SERVERS_TITLE: 'Скрывать неиспользуемые сервера',
-		/* Input fields */
-		HOW_MUCH_TITANITE: 'Сколько фармим титанита',
-		COMBAT_SPEED: 'Множитель ускорения боя',
-		NUMBER_OF_TEST: 'Количество тестовых боев',
-		NUMBER_OF_AUTO_BATTLE: 'Количество попыток автобоев',
-		/* Buttons */
-		RUN_SCRIPT: 'Запустить скрипт',
-		TO_DO_EVERYTHING: 'Сделать все',
-		TO_DO_EVERYTHING_TITLE: 'Выполнить несколько действий',
-		OUTLAND: 'Запределье',
-		OUTLAND_TITLE: 'Собрать Запределье',
-		TITAN_ARENA: 'Турн.Стихий',
-		TITAN_ARENA_TITLE: 'Автопрохождение Турнира Стихий',
-		DUNGEON: 'Подземелье',
-		DUNGEON_TITLE: 'Автопрохождение подземелья',
-		SEER: 'Провидец',
-		SEER_TITLE: 'Покрутить Провидца',
-		TOWER: 'Башня',
-		TOWER_TITLE: 'Автопрохождение башни',
-		EXPEDITIONS: 'Экспедиции',
-		EXPEDITIONS_TITLE: 'Отправка и сбор экспедиций',
-		SYNC: 'Синхронизация',
-		SYNC_TITLE: 'Частичная синхронизация данных игры без перезагрузки сатраницы',
-		OASLO_TOOL: 'Апгрейд героев во сне',
-		OASLO_TOOL_TITLE: 'Открыть Hero Wars oaslo Tool в текущей сессии браузера',
-		ARCHDEMON: 'Архидемон',
-		ARCHDEMON_TITLE: 'Набивает килы и собирает награду',
-		ESTER_EGGS: 'Пасхалки',
-		ESTER_EGGS_TITLE: 'Собрать все пасхалки или награды',
-		REWARDS: 'Награды',
-		REWARDS_TITLE: 'Собрать все награды за задания',
-		MAIL: 'Почта',
-		MAIL_TITLE: 'Собрать всю почту, кроме писем с энергией и зарядами портала',
-		MINIONS: 'Прислужники',
-		MINIONS_TITLE: 'Атакует прислужников сохраннеными пачками',
-		ADVENTURE: 'Прикл',
-		ADVENTURE_TITLE: 'Проходит приключение по указанному маршруту',
-		STORM: 'Буря',
-		STORM_TITLE: 'Проходит бурю по указанному маршруту',
-		SANCTUARY: 'Святилище',
-		SANCTUARY_TITLE: 'Быстрый переход к Святилищу',
-		GUILD_WAR: 'Война гильдий',
-		GUILD_WAR_TITLE: 'Быстрый переход к Войне гильдий',
-		SECRET_WEALTH: 'Тайное богатство',
-		SECRET_WEALTH_TITLE: 'Купить что-то в магазине "Тайное богатство"',
-		/* Miscellaneous */
-		BOTTOM_URLS:
-			'<a href="https://t.me/+q6gAGCRpwyFkNTYy" target="_blank" title="Telegram"><svg width="20" height="20" style="margin:2px" viewBox="0 0 1e3 1e3" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="a" x1="50%" x2="50%" y2="99.258%"><stop stop-color="#2AABEE" offset="0"/><stop stop-color="#229ED9" offset="1"/></linearGradient></defs><g fill-rule="evenodd"><circle cx="500" cy="500" r="500" fill="url(#a)"/><path d="m226.33 494.72c145.76-63.505 242.96-105.37 291.59-125.6 138.86-57.755 167.71-67.787 186.51-68.119 4.1362-0.072862 13.384 0.95221 19.375 5.8132 5.0584 4.1045 6.4501 9.6491 7.1161 13.541 0.666 3.8915 1.4953 12.756 0.83608 19.683-7.5246 79.062-40.084 270.92-56.648 359.47-7.0089 37.469-20.81 50.032-34.17 51.262-29.036 2.6719-51.085-19.189-79.207-37.624-44.007-28.847-68.867-46.804-111.58-74.953-49.366-32.531-17.364-50.411 10.769-79.631 7.3626-7.6471 135.3-124.01 137.77-134.57 0.30968-1.3202 0.59708-6.2414-2.3265-8.8399s-7.2385-1.7099-10.352-1.0032c-4.4137 1.0017-74.715 47.468-210.9 139.4-19.955 13.702-38.029 20.379-54.223 20.029-17.853-0.3857-52.194-10.094-77.723-18.393-31.313-10.178-56.199-15.56-54.032-32.846 1.1287-9.0037 13.528-18.212 37.197-27.624z" fill="#fff"/></g></svg></a><a href="https://vk.com/invite/YNPxKGX" target="_blank" title="Вконтакте"><svg width="20" height="20" style="margin:2px" viewBox="0 0 101 100" xmlns="http://www.w3.org/2000/svg"><g clip-path="url(#a)"><path d="M0.5 48C0.5 25.3726 0.5 14.0589 7.52944 7.02944C14.5589 0 25.8726 0 48.5 0H52.5C75.1274 0 86.4411 0 93.4706 7.02944C100.5 14.0589 100.5 25.3726 100.5 48V52C100.5 74.6274 100.5 85.9411 93.4706 92.9706C86.4411 100 75.1274 100 52.5 100H48.5C25.8726 100 14.5589 100 7.52944 92.9706C0.5 85.9411 0.5 74.6274 0.5 52V48Z" fill="#07f"/><path d="m53.708 72.042c-22.792 0-35.792-15.625-36.333-41.625h11.417c0.375 19.083 8.7915 27.167 15.458 28.833v-28.833h10.75v16.458c6.5833-0.7083 13.499-8.2082 15.832-16.458h10.75c-1.7917 10.167-9.2917 17.667-14.625 20.75 5.3333 2.5 13.875 9.0417 17.125 20.875h-11.834c-2.5417-7.9167-8.8745-14.042-17.25-14.875v14.875h-1.2919z" fill="#fff"/></g><defs><clipPath id="a"><rect transform="translate(.5)" width="100" height="100" fill="#fff"/></clipPath></defs></svg></a>',
-		GIFTS_SENT: 'Подарки отправлены!',
-		DO_YOU_WANT: 'Вы действительно хотите это сделать?',
-		BTN_RUN: 'Запускай',
-		BTN_CANCEL: 'Отмена',
-		BTN_ACCEPT: 'Принять',
-		BTN_OK: 'Ок',
-		MSG_HAVE_BEEN_DEFEATED: 'Вы потерпели поражение!',
-		BTN_AUTO: 'Авто',
-		MSG_YOU_APPLIED: 'Вы нанесли',
-		MSG_DAMAGE: 'урона',
-		MSG_CANCEL_AND_STAT: 'Авто (F5) и показать Статистику',
-		MSG_REPEAT_MISSION: 'Повторить миссию?',
-		BTN_REPEAT: 'Повторить',
-		BTN_NO: 'Нет',
-		MSG_SPECIFY_QUANT: 'Указать количество:',
-		BTN_OPEN: 'Открыть',
-		QUESTION_COPY: 'Вопрос скопирован в буфер обмена',
-		ANSWER_KNOWN: 'Ответ известен',
-		ANSWER_NOT_KNOWN: 'ВНИМАНИЕ ОТВЕТ НЕ ИЗВЕСТЕН',
-		BEING_RECALC: 'Идет прерасчет боя',
-		THIS_TIME: 'На этот раз',
-		VICTORY: '<span style="color:green;">ПОБЕДА</span>',
-		DEFEAT: '<span style="color:red;">ПОРАЖЕНИЕ</span>',
-		CHANCE_TO_WIN: 'Шансы на победу <span style="color:red;">на основе прерасчета</span>',
-		OPEN_DOLLS: 'матрешек рекурсивно',
-		SENT_QUESTION: 'Вопрос отправлен',
-		SETTINGS: 'Настройки',
-		MSG_BAN_ATTENTION: '<p style="color:red;">Использование этой функции может привести к бану.</p> Продолжить?',
-		BTN_YES_I_AGREE: 'Да, я беру на себя все риски!',
-		BTN_NO_I_AM_AGAINST: 'Нет, я отказываюсь от этого!',
-		VALUES: 'Значения',
-		EXPEDITIONS_SENT: 'Экспедиции:<br>Собрано: {countGet}<br>Отправлено: {countSend}',
-		EXPEDITIONS_NOTHING: 'Нечего собирать/отправлять',
-		EXPEDITIONS_NOTTIME: 'Не время для экспедиций',
-		TITANIT: 'Титанит',
-		COMPLETED: 'завершено',
-		FLOOR: 'Этаж',
-		LEVEL: 'Уровень',
-		BATTLES: 'бои',
-		EVENT: 'Эвент',
-		NOT_AVAILABLE: 'недоступен',
-		NO_HEROES: 'Нет героев',
-		DAMAGE_AMOUNT: 'Количество урона',
-		NOTHING_TO_COLLECT: 'Нечего собирать',
-		COLLECTED: 'Собрано',
-		REWARD: 'наград',
-		REMAINING_ATTEMPTS: 'Осталось попыток',
-		BATTLES_CANCELED: 'Битв отменено',
-		MINION_RAID: 'Рейд прислужников',
-		STOPPED: 'Остановлено',
-		REPETITIONS: 'Повторений',
-		MISSIONS_PASSED: 'Миссий пройдено',
-		STOP: 'остановить',
-		TOTAL_OPEN: 'Всего открыто',
-		OPEN: 'Открыто',
-		ROUND_STAT: 'Статистика урона за',
-		BATTLE: 'боев',
-		MINIMUM: 'Минимальный',
-		MAXIMUM: 'Максимальный',
-		AVERAGE: 'Средний',
-		NOT_THIS_TIME: 'Не в этот раз',
-		RETRY_LIMIT_EXCEEDED: 'Превышен лимит попыток',
-		SUCCESS: 'Успех',
-		RECEIVED: 'Получено',
-		LETTERS: 'писем',
-		PORTALS: 'порталов',
-		ATTEMPTS: 'попыток',
-		QUEST_10001: 'Улучши умения героев 3 раза',
-		QUEST_10002: 'Пройди 10 миссий',
-		QUEST_10003: 'Пройди 3 героические миссии',
-		QUEST_10004: 'Сразись 3 раза на Арене или Гранд Арене',
-		QUEST_10006: 'Используй обмен изумрудов 1 раз',
-		QUEST_10007: 'Соверши 1 призыв в Атриуме Душ',
-		QUEST_10016: 'Отправь подарки согильдийцам',
-		QUEST_10018: 'Используй зелье опыта',
-		QUEST_10019: 'Открой 1 сундук в Башне',
-		QUEST_10020: 'Открой 3 сундука в Запределье',
-		QUEST_10021: 'Собери 75 Титанита в Подземелье Гильдии',
-		QUEST_10021: 'Собери 150 Титанита в Подземелье Гильдии',
-		QUEST_10023: 'Прокачай Дар Стихий на 1 уровень',
-		QUEST_10024: 'Повысь уровень любого артефакта один раз',
-		QUEST_10025: 'Начни 1 Экспедицию',
-		QUEST_10026: 'Начни 4 Экспедиции',
-		QUEST_10027: 'Победи в 1 бою Турнира Стихий',
-		QUEST_10028: 'Повысь уровень любого артефакта титанов',
-		QUEST_10029: 'Открой сферу артефактов титанов',
-		QUEST_10030: 'Улучши облик любого героя 1 раз',
-		QUEST_10031: 'Победи в 6 боях Турнира Стихий',
-		QUEST_10043: 'Начни или присоеденись к Приключению',
-		QUEST_10044: 'Воспользуйся призывом питомцев 1 раз',
-		QUEST_10046: 'Открой 3 сундука в Приключениях',
-		QUEST_10047: 'Набери 150 очков активности в Гильдии',
-		NOTHING_TO_DO: 'Нечего выполнять',
-		YOU_CAN_COMPLETE: 'Можно выполнить квесты',
-		BTN_DO_IT: 'Выполняй',
-		NOT_QUEST_COMPLETED: 'Ни одного квеста не выполенно',
-		COMPLETED_QUESTS: 'Выполнено квестов',
-		/* everything button */
-		ASSEMBLE_OUTLAND: 'Собрать Запределье',
-		PASS_THE_TOWER: 'Пройти башню',
-		CHECK_EXPEDITIONS: 'Проверить экспедиции',
-		COMPLETE_TOE: 'Пройти Турнир Стихий',
-		COMPLETE_DUNGEON: 'Пройти подземелье',
-		COLLECT_MAIL: 'Собрать почту',
-		COLLECT_MISC: 'Собрать всякую херню',
-		COLLECT_MISC_TITLE: 'Собрать пасхалки, камни облика, ключи, монеты арены и Хрусталь души',
-		COLLECT_QUEST_REWARDS: 'Собрать награды за квесты',
-		MAKE_A_SYNC: 'Сделать синхронизацию',
+async function loadLanguageData(language) {
+	if (i18nLangData[language]) {
+		return i18nLangData[language];
+	}
 
-		RUN_FUNCTION: 'Выполнить следующие функции?',
-		BTN_GO: 'Погнали!',
-		PERFORMED: 'Выполняется',
-		DONE: 'Выполнено',
-		ERRORS_OCCURRES: 'Призошли ошибки при выполнении',
-		COPY_ERROR: 'Скопировать в буфер информацию об ошибке',
-		BTN_YES: 'Да',
-		ALL_TASK_COMPLETED: 'Все задачи выполнены',
+	const cacheKey = i18nCacheKeyPrefix + language;
+	try {
+		const dictionary = await requestLanguageDictionary(language);
+		if (!dictionary || Array.isArray(dictionary)) {
+			throw new Error(`Invalid ${language} dictionary`);
+		}
+		i18nLangData[language] = dictionary;
+		localStorage.setItem(cacheKey, JSON.stringify(dictionary));
+		return dictionary;
+	} catch (error) {
+		try {
+			const cachedDictionary = JSON.parse(localStorage.getItem(cacheKey));
+			if (cachedDictionary && !Array.isArray(cachedDictionary)) {
+				i18nLangData[language] = cachedDictionary;
+				return cachedDictionary;
+			}
+		} catch (cacheError) {
+			console.warn(`Unable to read cached ${language} dictionary`, cacheError);
+		}
+		throw error;
+	}
+}
 
-		UNKNOWN: 'Неизвестно',
-		ENTER_THE_PATH: 'Введите путь приключения через запятые или дефисы',
-		START_ADVENTURE: 'Начать приключение по этому пути!',
-		INCORRECT_WAY: 'Неверный путь в приключении: {from} -> {to}',
-		BTN_CANCELED: 'Отменено',
-		MUST_TWO_POINTS: 'Путь должен состоять минимум из 2х точек',
-		MUST_ONLY_NUMBERS: 'Путь должен содержать только цифры и запятые',
-		NOT_ON_AN_ADVENTURE: 'Вы не в приключении',
-		YOU_IN_NOT_ON_THE_WAY: 'Указанный путь должен включать точку вашего положения',
-		ATTEMPTS_NOT_ENOUGH: 'Ваших попыток не достаточно для завершения пути, продолжить?',
-		YES_CONTINUE: 'Да, продолжай!',
-		NOT_ENOUGH_AP: 'Попыток не достаточно',
-		ATTEMPTS_ARE_OVER: 'Попытки закончились',
-		MOVES: 'Ходы',
-		BUFF_GET_ERROR: 'Ошибка при получении бафа',
-		BATTLE_END_ERROR: 'Ошибка завершения боя',
-		AUTOBOT: 'АвтоБой',
-		FAILED_TO_WIN_AUTO: 'Не удалось победить в автобою',
-		ERROR_OF_THE_BATTLE_COPY: 'Призошли ошибка в процессе прохождения боя<br>Скопировать ошибку в буфер обмена?',
-		ERROR_DURING_THE_BATTLE: 'Ошибка в процессе прохождения боя',
-		NO_CHANCE_WIN: 'Нет шансов победить в этом бою: 0/',
-		LOST_HEROES: 'Вы победили, но потеряли одного или несколько героев!',
-		VICTORY_IMPOSSIBLE: 'Победа не возможна, бъем на результат?',
-		FIND_COEFF: 'Поиск коэффициента больше чем',
-		BTN_PASS: 'ПРОПУСК',
-		BRAWLS: 'Потасовки',
-		BRAWLS_TITLE: 'Включает возможность автопотасовок',
-		START_AUTO_BRAWLS: 'Запустить Автопотасовки?',
-		LOSSES: 'Поражений',
-		WINS: 'Побед',
-		FIGHTS: 'Боев',
-		STAGE: 'Стадия',
-		DONT_HAVE_LIVES: 'У Вас нет жизней',
-		LIVES: 'Жизни',
-		SECRET_WEALTH_ALREADY: 'товар за Зелья питомцев уже куплен',
-		SECRET_WEALTH_NOT_ENOUGH: 'Не достаточно Зелье Питомца, у Вас {available}, нужно {need}',
-		SECRET_WEALTH_UPGRADE_NEW_PET: 'После покупки Зелье Питомца будет не достаточно для прокачки нового питомца',
-		SECRET_WEALTH_PURCHASED: 'Куплено {count} {name}',
-		SECRET_WEALTH_CANCELED: 'Тайное богатство: покупка отменена',
-		SECRET_WEALTH_BUY: 'У вас {available} Зелье Питомца.<br>Вы хотите купить {countBuy} {name} за {price} Зелье Питомца?',
-		DAILY_BONUS: 'Ежедневная награда',
-		DO_DAILY_QUESTS: 'Сделать ежедневные квесты',
-		ACTIONS: 'Действия',
-		ACTIONS_TITLE: 'Диалоговое окно с различными действиями',
-		OTHERS: 'Разное',
-		OTHERS_TITLE: 'Диалоговое окно с дополнительными различными действиями',
-		CHOOSE_ACTION: 'Выберите действие',
-		OPEN_LOOTBOX: 'У Вас {lootBox} ящиков, откываем?',
-		STAMINA: 'Энергия',
-		BOXES_OVER: 'Ящики закончились',
-		NO_BOXES: 'Нет ящиков',
-		NO_MORE_ACTIVITY: 'Больше активности за предметы сегодня не получить',
-		EXCHANGE_ITEMS: 'Обменять предметы на очки активности (не более {maxActive})?',
-		GET_ACTIVITY: 'Получить активность',
-		NOT_ENOUGH_ITEMS: 'Предметов недостаточно',
-		ACTIVITY_RECEIVED: 'Получено активности',
-		NO_PURCHASABLE_HERO_SOULS: 'Нет доступных для покупки душ героев',
-		PURCHASED_HERO_SOULS: 'Куплено {countHeroSouls} душ героев',
-		NOT_ENOUGH_EMERALDS_540: 'Недостаточно изюма, нужно {imgEmerald}540 у Вас {imgEmerald}{currentStarMoney}',
-		BUY_OUTLAND_BTN: 'Купить {count} сундуков {imgEmerald}{countEmerald}',
-		CHESTS_NOT_AVAILABLE: 'Сундуки не доступны',
-		OUTLAND_CHESTS_RECEIVED: 'Получено сундуков Запределья',
-		RAID_NOT_AVAILABLE: 'Рейд не доступен или сфер нет',
-		RAID_ADVENTURE: 'Рейд {adventureId} приключения!',
-		SOMETHING_WENT_WRONG: 'Что-то пошло не так',
-		ADVENTURE_COMPLETED: 'Приключение {adventureId} пройдено {times} раз',
-		CLAN_STAT_COPY: 'Клановая статистика скопирована в буфер обмена',
-		GET_ENERGY: 'Получить энергию',
-		GET_ENERGY_TITLE: 'Открывает платиновые шкатулки по одной до получения 250 энергии',
-		ITEM_EXCHANGE: 'Обмен предметов',
-		ITEM_EXCHANGE_TITLE: 'Обменивает предметы на указанное количество активности',
-		BUY_SOULS: 'Купить души',
-		BUY_SOULS_TITLE: 'Купить души героев из всех доступных магазинов',
-		BUY_OUTLAND: 'Купить Запределье',
-		BUY_OUTLAND_TITLE: 'Купить 9 сундуков в Запределье за 540 изумрудов',
-		RAID: 'Рейд',
-		AUTO_RAID_ADVENTURE: 'Рейд',
-		AUTO_RAID_ADVENTURE_TITLE: 'Рейд приключения заданное количество раз',
-		CLAN_STAT: 'Клановая статистика',
-		CLAN_STAT_TITLE: 'Копирует клановую статистику в буфер обмена',
-		BTN_AUTO_F5: 'Авто (F5)',
-		BOSS_DAMAGE: 'Урон по боссу: ',
-		NOTHING_BUY: 'Нечего покупать',
-		LOTS_BOUGHT: 'За золото куплено {countBuy} лотов',
-		BUY_FOR_GOLD: 'Скупить за золото',
-		BUY_FOR_GOLD_TITLE: 'Скупить предметы за золото в Городской лавке и в магазине Камней Душ Питомцев',
-		REWARDS_AND_MAIL: 'Награды и почта',
-		REWARDS_AND_MAIL_TITLE: 'Собирает награды и почту',
-		COLLECT_REWARDS_AND_MAIL: 'Собрано {countQuests} наград и {countMail} писем',
-		TIMER_ALREADY: 'Таймер уже запущен {time}',
-		NO_ATTEMPTS_TIMER_START: 'Попыток нет, запущен таймер {time}',
-		EPIC_BRAWL_RESULT: '{i} Победы: {wins}/{attempts}, Монеты: {coins}, Серия: {progress}/{nextStage} [Закрыть]{end}',
-		ATTEMPT_ENDED: '<br>Попытки закончились, запущен таймер {time}',
-		EPIC_BRAWL: 'Вселенская битва',
-		EPIC_BRAWL_TITLE: 'Тратит попытки во Вселенской битве',
-		RELOAD_GAME: 'Перезагрузить игру',
-		TIMER: 'Таймер:',
-		SHOW_ERRORS: 'Отображать ошибки',
-		SHOW_ERRORS_TITLE: 'Отображать ошибки запросов к серверу',
-		ERROR_MSG: 'Ошибка: {name}<br>{description}',
-		EVENT_AUTO_BOSS:
-			'Максимальное количество боев для расчета:</br>{length} * {countTestBattle} = {maxCalcBattle}</br>Если у Вас слабый компьютер на это может потребоваться много времени, нажмите крестик для отмены.</br>Искать лучший пак из всех или первый подходящий?',
-		BEST_SLOW: 'Лучший (медленее)',
-		FIRST_FAST: 'Первый (быстрее)',
-		FREEZE_INTERFACE: 'Идет расчет... <br> Интерфейс может зависнуть.',
-		ERROR_F12: 'Ошибка, подробности в консоли (F12)',
-		FAILED_FIND_WIN_PACK: 'Победный пак найти не удалось',
-		BEST_PACK: 'Наилучший пак: ',
-		BOSS_HAS_BEEN_DEF: 'Босс {bossLvl} побежден',
-		NOT_ENOUGH_ATTEMPTS_BOSS: 'Для победы босса ${bossLvl} не хватило попыток, повторить?',
-		BOSS_VICTORY_IMPOSSIBLE:
-			'По результатам прерасчета {battles} боев победу получить не удалось. Вы хотите продолжить поиск победного боя на реальных боях?',
-		BOSS_HAS_BEEN_DEF_TEXT:
-			'Босс {bossLvl} побежден за<br>{countBattle}/{countMaxBattle} попыток{winTimer}<br>(Сделайте синхронизацию или перезагрузите игру для обновления данных)',
-		MAP: 'Карта: ',
-		PLAYER_POS: 'Позиции игроков:',
-		NY_GIFTS: 'Подарки',
-		NY_GIFTS_TITLE: 'Открыть все новогодние подарки',
-		NY_NO_GIFTS: 'Нет не полученных подарков',
-		NY_GIFTS_COLLECTED: 'Собрано {count} подарков',
-		CHANGE_MAP: 'Карта острова',
-		CHANGE_MAP_TITLE: 'Сменить карту острова',
-		SELECT_ISLAND_MAP: 'Выберите карту острова:',
-		MAP_NUM: 'Карта {num}',
-		SECRET_WEALTH_SHOP: 'Тайное богатство {name}: ',
-		SHOPS: 'Магазины',
-		SHOPS_DEFAULT: 'Стандартные',
-		SHOPS_DEFAULT_TITLE: 'Стандартные магазины',
-		SHOPS_LIST: 'Магазины {number}',
-		SHOPS_LIST_TITLE: 'Список магазинов {number}',
-		SHOPS_WARNING:
-			'Магазины<br><span style="color:red">Если Вы купите монеты магазинов потасовок за изумруды, то их надо использовать сразу, иначе после перезагрузки игры они пропадут!</span>',
-		MINIONS_WARNING: 'Пачки героев для атаки приспешников неполные, продолжить?',
-		FAST_SEASON: 'Быстрый сезон',
-		FAST_SEASON_TITLE: 'Пропуск экрана с выбором карты в сезоне',
-		SET_NUMBER_LEVELS: 'Указать колличество уровней:',
-		POSSIBLE_IMPROVE_LEVELS: 'Возможно улучшить только {count} уровней.<br>Улучшаем?',
-		NOT_ENOUGH_RESOURECES: 'Не хватает ресурсов',
-		IMPROVED_LEVELS: 'Улучшено уровней: {count}',
-		ARTIFACTS_UPGRADE: 'Улучшение артефактов',
-		ARTIFACTS_UPGRADE_TITLE: 'Улучшает указанное количество самых дешевых артефактов героев',
-		SKINS_UPGRADE: 'Улучшение обликов',
-		SKINS_UPGRADE_TITLE: 'Улучшает указанное количество самых дешевых обликов героев',
-		HINT: '<br>Подсказка: ',
-		PICTURE: '<br>На картинке: ',
-		ANSWER: '<br>Ответ: ',
-		NO_HEROES_PACK: 'Проведите хотя бы один бой для сохранения атакующей команды',
-		BRAWL_AUTO_PACK: 'Автоподбор пачки',
-		BRAWL_AUTO_PACK_NOT_CUR_HERO: 'Автоматический подбор пачки не подходит для текущего героя',
-		BRAWL_DAILY_TASK_COMPLETED: 'Ежедневное задание выполнено, продолжить атаку?',
-		CALC_STAT: 'Посчитать статистику',
-		ELEMENT_TOURNAMENT_REWARD: 'Несобранная награда за Турнир Стихий',
-		BTN_TRY_FIX_IT: 'Исправить',
-		BTN_TRY_FIX_IT_TITLE: 'Включить исправление боев при автоатаке',
-		DAMAGE_FIXED: 'Урон исправлен с {lastDamage} до {maxDamage}!',
-		DAMAGE_NO_FIXED: 'Не удалось исправить урон: {lastDamage}',
-		LETS_FIX: 'Исправляем',
-		COUNT_FIXED: 'За {count} попыток',
-		DEFEAT_TURN_TIMER: 'Поражение! Включить таймер для завершения миссии?',
-		SEASON_REWARD: 'Награды сезонов',
-		SEASON_REWARD_TITLE: 'Собирает доступные бесплатные награды со всех текущих сезонов',
-		SEASON_REWARD_COLLECTED: 'Собрано {count} наград сезонов',
-		SELL_HERO_SOULS: 'Продать души',
-		SELL_HERO_SOULS_TITLE: 'Обменивает все души героев с абсолютной звездой на золото',
-		GOLD_RECEIVED: 'Получено золота: {gold}',
-		SERVER_NOT_ACCEPT: 'Сервер не принял результат',
-		INVASION_BOSS_BUFF: 'Для {bossLvl} босса нужен баф {needBuff} у вас {haveBuff}',
-		HERO_POWER: 'Сила героев',
-		HERO_POWER_TITLE: 'Отображает текущую и максимальную силу героев',
-		MAX_POWER_REACHED: 'Максимальная достигнутая мощь: {power}',
-		CURRENT_POWER: 'Текущая мощь: {power}',
-		POWER_TO_MAX: 'До максимума мощи осталось: <span style="color:{color};">{power}</span><br>',
-		BEST_RESULT: 'Лучший результат: {value}%',
-		GUILD_ISLAND_TITLE: 'Перейти к Острову гильдии',
-		TITAN_VALLEY_TITLE: 'Перейти к Долине титанов',
-		EXTENSIONS: 'Расширения',
-		EXTENSIONS_TITLE: 'Расширения для скрипта',
-		EXTENSIONS_LIST_TITLE: 'Расширения для скрипта',
-		EVENT_IS_OVER: 'Эвент завершен',
-		SET_COUNT_KILLS: 'Задайте колличество врагов которых необходимо убить сегодня:',
-		MORE_ENEMIES_KILLED: 'Уже убито больше {countKills} врагов',
-		RESTART_TRY_AGAIN_LATER: 'Перезагрузите игру и попробуйте позже',
-		ENEMIES_KILLED_AND_HEROES_USED: 'Количество убитых врагов: {score}<br>Использовано {count} героев',
-		FURNACE_OF_SOULS: 'Горнило',
-		PUMPKINS: 'Тыквы!',
-		PUMPKINS_TITLE: 'Обмен всей Призрачной энергии на Монеты Фестиваля Духов',
-		PUMPKINS_RUN: 'Обменять всю Призрачную энергию на Монеты Фестиваля Духов?',
-		TIDY_INVENTORY: 'Прибрать инвентарь',
-		TIDY_INVENTORY_TITLE: 'Прибрать инвентарь',
-		EQUIPMENT_FRAGMENT_CRATES: 'Ящики фрагментов экипировки',
-		EQUIPMENT_FRAGMENT_CRATES_TITLE: 'Открыть все ящики фрагментов экипировки',
-		RAND_NUGGETS_AND_REGAL: 'Случайные самородки и регалии',
-		RAND_NUGGETS_AND_REGAL_TITLE: 'Открыть случайные самородки и регалии',
-		ARTIFACT_RESOURCES: 'Артефактные ресы',
-		ARTIFACT_RESOURCES_TITLE: 'Открыть сундуки с артефактными эссенсиями, свитакми, металлами',
-		USE_KEYBOARD: 'Введите значение с помощью клавиатуры',
-		SEERGAME: 'Игра Провидицы',
-		SEERGAME_TITLE: 'Выполяет основные квесты для ивента "Игра Провидицы"',
-		SEERGAME_MSG:
-			'Этот скрипт не позволяет выйграть игру, он всего лиш проходит квест победить 30 раз в автоматическом режиме, для этого он проходит первые 6 раундов снова и снова пока не наберет 30 побед подряд. Вероятность выполнить квест таким образом очень высокая, но она не 100%. Если вам сильно не повезет вы можете потерять монеты и не выполнить квест. Удачи!',
-		SEERGAME_NOT_ENOUGH_COINS_CONTINUE: 'Недостаточно монет для продолжения игры в случае ошибки. Вы можете продолжить игру вручную.',
-		SEERGAME_NOT_ENOUGH_COINS_START: 'Недостаточно монет для старта игры',
-		SEERGAME_SUCCESS: 'Успех! Продолжаем игру...',
-		SEERGAME_FAILURE: 'Неудача!',
-		SEERGAME_CONTINUE: 'Продолжаем игру за {cost} монет',
-		SEERGAME_NEW: 'Стартуем! Монеты: {coins}',
-		SEERGAME_START: 'Стартуем новую игру за {cost} монет',
-		SEERGAME_END: 'Завершаем игру и забираем награды',
-		SEERGAME_FINISH: 'SeerGame завершена, потрачено {spentCoins} монет',
-		SEERGAME_RESTART: 'Перезапуск игры...',
-		SEERGAME_PROGRESS: 'Раунд {round}, Побед подряд: {streak}',
-	},
-};
+async function loadI18n(language = getLang()) {
+	await loadLanguageData(language);
+	if (language !== 'en') {
+		await loadLanguageData('en');
+	}
+}
+
+function getSelectedLanguage() {
+	try {
+		const language = localStorage.getItem(scriptLanguageStorageKey);
+		return scriptLanguages.includes(language) ? language : null;
+	} catch (e) {
+		return null;
+	}
+}
 
 function getLang() {
+	const selectedLanguage = getSelectedLanguage();
+	if (selectedLanguage) {
+		return selectedLanguage;
+	}
 	let lang = '';
 	if (typeof NXFlashVars !== 'undefined') {
 		lang = NXFlashVars.interface_lang
@@ -1133,8 +394,7 @@ function getLang() {
 	if (!lang) {
 		lang = (navigator.language || navigator.userLanguage).substr(0, 2);
 	}
-	const { i18nLangData } = HWHData;
-	if (i18nLangData[lang]) {
+	if (scriptLanguages.includes(lang)) {
 		return lang;
 	}
 	return 'en';
@@ -1143,15 +403,16 @@ function getLang() {
 this.I18N = function (constant, replace) {
 	const { i18nLangData } = HWHData;
 	const selectLang = getLang();
-	if (constant && constant in i18nLangData[selectLang]) {
-		const result = i18nLangData[selectLang][constant];
+	const languageData = i18nLangData[selectLang] ?? i18nLangData.en ?? {};
+	if (constant && constant in languageData) {
+		const result = languageData[constant];
 		if (replace) {
 			return result.sprintf(replace);
 		}
 		return result;
 	}
 	console.warn('Language constant not found', {constant, replace});
-	if (i18nLangData['en'][constant]) {
+	if (i18nLangData.en?.[constant]) {
 		const result = i18nLangData['en'][constant];
 		if (replace) {
 			return result.sprintf(replace);
@@ -2357,6 +1618,11 @@ XMLHttpRequest.prototype.send = async function (sourceData) {
 				lib.setData(cheats.libGame);
 			} else {
 				lib.setData(await cheats.LibLoad());
+			}
+			try {
+				await loadI18n();
+			} catch (error) {
+				console.error('Unable to load interface dictionary', error);
 			}
 			addControls();
 			addControlButtons();
@@ -4000,16 +3266,49 @@ function createInterface() {
 	const scriptMenu = ScriptMenu.getInst();
 	scriptMenu.init();
 	scriptMenu.addHeader(GM_info.script.name, justInfo);
-	const versionHeader = scriptMenu.addHeader('v' + GM_info.script.version);
+	const languageHeader = scriptMenu.addHeader('');
+	languageHeader.classList.add('scriptMenu_languageHeader');
+	const languageSelect = document.createElement('select');
+	languageSelect.classList.add('scriptMenu_language');
+	const languageNames = {
+		en: 'English',
+		uk: '\u0423\u043a\u0440\u0430\u0457\u043d\u0441\u044c\u043a\u0430',
+		ru: '\u0420\u0443\u0441\u0441\u043a\u0438\u0439',
+	};
+	for (const language of scriptLanguages) {
+		const option = document.createElement('option');
+		option.value = language;
+		option.textContent = languageNames[language];
+		languageSelect.appendChild(option);
+	}
+	languageSelect.value = getLang();
+	languageSelect.addEventListener('change', async () => {
+		const previousLanguage = getSelectedLanguage();
+		const selectedLanguage = languageSelect.value;
+		localStorage.setItem(scriptLanguageStorageKey, selectedLanguage);
+		languageSelect.disabled = true;
+		try {
+			await loadI18n(selectedLanguage);
+			window.location.reload();
+		} catch (error) {
+			console.error(`Unable to load ${selectedLanguage} dictionary`, error);
+			if (previousLanguage) {
+				localStorage.setItem(scriptLanguageStorageKey, previousLanguage);
+			} else {
+				localStorage.removeItem(scriptLanguageStorageKey);
+			}
+			languageSelect.value = getLang();
+			languageSelect.disabled = false;
+		}
+	});
+	languageHeader.appendChild(languageSelect);
+	languageSelect.title = 'v' + GM_info.script.version;
 	const { extentionsList } = HWHData;
 	if (extentionsList.length) {
-		versionHeader.title = '';
-		versionHeader.style.color = 'red';
 		for (const extention of extentionsList) {
 			const { name, ver, author } = extention;
-			versionHeader.title += name + ', v' + ver + ' by ' + author + '\n';
+			languageSelect.title += '\n' + name + ', v' + ver + ' by ' + author;
 		}
-		versionHeader.innerText += ` [${extentionsList.length}]`;
 	}
 	// AutoClicker
 	const hkm = new HotkeyManager();
@@ -8519,6 +7818,24 @@ class ScriptMenu extends EventEmitterMixin() {
 		.scriptMenu_header a {
 			color: #fce5b7;
 			text-decoration: none;
+		}
+		.scriptMenu_languageHeader {
+			margin: 4px 15px 2px;
+		}
+		.scriptMenu_language {
+			min-width: 132px;
+			height: 25px;
+			border: 1px solid #cf9250;
+			border-radius: 5px;
+			background: #190e08;
+			color: #fce1ac;
+			font: inherit;
+			font-weight: 600;
+			text-align: center;
+			cursor: pointer;
+		}
+		.scriptMenu_language:focus {
+			outline: 1px solid #fce1ac;
 		}
 		.scriptMenu_InputText {
 			text-align: center;
