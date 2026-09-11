@@ -822,6 +822,14 @@
 			},
 			onClick: () => new GearFarmer().start(),
 		},
+		gearFarmPriority: {
+			name: '↕',
+			get title() {
+				return I18N('GEAR_FARM_PRIORITY_TITLE');
+			},
+			onClick: () => new GearFarmer().configurePriorities(),
+			color: 'green',
+		},
 		oasloTool: {
 			get name() {
 				return I18N('OASLO_TOOL');
@@ -13761,6 +13769,79 @@
 			return `${this.getItemName(target.type, target.itemId)} -> ${this.getMissionName(missionId)}`;
 		}
 
+		getPriorityOrder() {
+			const savedOrder = getSaveVal('gearFarmHeroPriority', []);
+			return Array.isArray(savedOrder) ? [...new Set(savedOrder.map(Number).filter((heroId) => heroId > 0))] : [];
+		}
+
+		async configurePriorities() {
+			const heroes = Object.values(await Caller.send('heroGetAll')).sort((left, right) => this.getHeroName(left.id).localeCompare(this.getHeroName(right.id)));
+			const icons = Object.fromEntries(await Promise.all(heroes.map(async (hero) => [hero.id, await this.getHeroIcon(hero.id)])));
+			let order = this.getPriorityOrder().filter((heroId) => heroes.some((hero) => Number(hero.id) === heroId));
+			await popup.customPopup((complete) => {
+				popup.setMsgText(I18N('GEAR_FARM_PRIORITY'));
+				const grid = document.createElement('div');
+				grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:6px;padding:12px 4px;max-width:520px';
+				const footer = document.createElement('div');
+				footer.style.cssText = 'display:flex;gap:6px;padding:8px 4px;justify-content:center';
+				const render = () => {
+					grid.innerHTML = '';
+					heroes.forEach((hero) => {
+						const heroId = Number(hero.id);
+						const priority = order.indexOf(heroId);
+						const cell = document.createElement('button');
+						cell.type = 'button';
+						cell.title = this.getHeroName(heroId);
+						cell.style.cssText = `position:relative;height:52px;border:1px solid ${priority >= 0 ? '#88cb13' : '#cf9250'};background:#170d07;cursor:pointer;padding:2px`;
+						if (icons[heroId]) {
+							const image = document.createElement('img');
+							image.src = icons[heroId];
+							image.alt = this.getHeroName(heroId);
+							image.style.cssText = 'width:100%;height:100%;object-fit:contain';
+							cell.append(image);
+						} else {
+							cell.textContent = this.getHeroName(heroId).slice(0, 2);
+						}
+						if (priority >= 0) {
+							const badge = document.createElement('span');
+							badge.textContent = priority + 1;
+							badge.style.cssText = 'position:absolute;right:-3px;top:-5px;min-width:16px;height:16px;border-radius:9px;background:#88cb13;color:#170d07;font-weight:bold;font-size:12px;line-height:16px';
+							cell.append(badge);
+						}
+						cell.addEventListener('click', () => {
+							order = priority >= 0 ? order.filter((id) => id !== heroId) : [...order, heroId];
+							render();
+						});
+						grid.append(cell);
+					});
+				};
+				const clear = document.createElement('button');
+				clear.textContent = I18N('BTN_CLEAR');
+				clear.addEventListener('click', () => {
+					order = [];
+					render();
+				});
+				const save = document.createElement('button');
+				save.textContent = I18N('BTN_SAVE');
+				save.addEventListener('click', () => {
+					setSaveVal('gearFarmHeroPriority', order);
+					setSaveVal('gearFarmHeroPriorityConfigured', true);
+					popup.hide();
+					complete(order);
+				});
+				const cancel = document.createElement('button');
+				cancel.textContent = I18N('BTN_CANCEL');
+				cancel.addEventListener('click', () => {
+					popup.hide();
+					complete(false);
+				});
+				footer.append(clear, cancel, save);
+				popup.custom.append(grid, footer);
+				render();
+				popup.show();
+			});
+		}
+
 		escapeHtml(value) {
 			return String(value).replace(/[&<>"']/g, (character) => ({
 				'&': '&amp;',
@@ -13863,6 +13944,10 @@
 
 		getInventoryAmount(inventory, type, itemId) {
 			return Number(inventory?.[type]?.[itemId]) || 0;
+		}
+
+		getStaminaAmount(userInfo) {
+			return Number(Object.values(userInfo?.refillable ?? {}).find((entry) => Number(entry?.id) === 1)?.amount) || 0;
 		}
 
 		getItemData(type, itemId) {
@@ -14036,33 +14121,22 @@
 			}
 			GearFarmer.running = true;
 			try {
-				const heroes = Object.values(await Caller.send('heroGetAll'))
+				if (!getSaveVal('gearFarmHeroPriorityConfigured', false)) {
+					await this.configurePriorities();
+					if (!getSaveVal('gearFarmHeroPriorityConfigured', false)) {
+						return;
+					}
+				}
+				let heroes = Object.values(await Caller.send('heroGetAll'))
 					.filter((hero) => this.getTierSlots(hero).some(({ slotId }) => !this.isSlotEquipped(hero, slotId)))
 					.sort((left, right) => Number(right.power) - Number(left.power));
+				const heroesById = new Map(heroes.map((hero) => [Number(hero.id), hero]));
+				heroes = this.getPriorityOrder().map((heroId) => heroesById.get(heroId)).filter(Boolean);
 				if (!heroes.length) {
 					await popup.confirm(I18N('GEAR_FARM_ALL_EQUIPPED'));
 					return;
 				}
-				const heroIcons = Object.fromEntries(await Promise.all(heroes.map(async (hero) => [hero.id, await this.getHeroIcon(hero.id)])));
-
-				const selected = await popup.confirm(I18N('GEAR_FARM_SELECT_HERO'), [
-					{ msg: I18N('BTN_CANCEL'), result: false, isCancel: true, color: 'red' },
-					{ msg: I18N('BTN_RUN'), result: true, color: 'green' },
-				], heroes.map((hero, index) => ({
-					name: String(hero.id),
-					label: this.getHeroLabel(hero, heroIcons[hero.id]),
-					title: this.getHeroName(hero.id),
-					checked: index === 0,
-					radio: 'gearFarmHero',
-				})));
-				if (!selected) {
-					return;
-				}
-				const heroId = Number(popup.getCheckBoxes().find((checkbox) => checkbox.checked)?.name);
-				const hero = heroes.find((item) => Number(item.id) === heroId);
-				if (!hero) {
-					return;
-				}
+				const hero = heroes[0];
 
 				const [inventory, missions, userInfo] = await Caller.send(['inventoryGet', 'missionGetAll', 'userGetInfo']);
 				const vipLevel = Math.max(0, ...Object.values(lib.data?.level?.vip ?? {})
@@ -14093,16 +14167,18 @@
 				}
 
 				const details = raids.map(({ target, id, times, cost }) => I18N('GEAR_FARM_MISSION', { mission: this.getFarmLocation(target, id), times, stamina: times * cost })).join('<br>');
-				const energyLimit = Number(await popup.confirm(
+				const enteredEnergyLimit = Number(await popup.confirm(
 					`${I18N('GEAR_FARM_PLAN', { hero: this.getHeroName(hero.id), slots: missingSlots.length })}<br><br>${details}${vipLevel === 0 ? `<br><br>${I18N('GEAR_FARM_NORMAL_MODE')}` : ''}${unavailable.length ? `<br><br>${I18N('GEAR_FARM_UNAVAILABLE', { count: unavailable.length })}` : ''}`,
 					[
 						{ msg: I18N('BTN_CANCEL'), result: false, isCancel: true, color: 'red' },
 						{ msg: I18N('BTN_RUN'), isInput: true, default: 100, color: 'green' },
 					]
 				));
-				if (!energyLimit || energyLimit < 1) {
+				if (!enteredEnergyLimit || enteredEnergyLimit < 1) {
 					return;
 				}
+				const liveUserInfo = await Caller.send('userGetInfo');
+				const energyLimit = Math.min(enteredEnergyLimit, this.getStaminaAmount(liveUserInfo));
 
 				let energyLeft = energyLimit;
 				const plannedRaids = raids.reduce((total, raid) => {
