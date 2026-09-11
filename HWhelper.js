@@ -26,13 +26,11 @@
 /**
  * Start script
  *
- * Стартуем скрипт
  */
 console.log('%cStart ' + GM_info.script.name + ', v' + GM_info.script.version + ' by ' + GM_info.script.author, 'color: red');
 /**
  * Script info
  *
- * Информация о скрипте
  */
 this.scriptInfo = (({name, version, author, homepage, lastModified}, updateUrl) =>
 	({name, version, author, homepage, lastModified, updateUrl}))
@@ -41,26 +39,22 @@ this.GM_info = GM_info;
 /**
  * Information for completing daily quests
  *
- * Информация для выполнения ежендевных квестов
  */
 const questsInfo = {};
 /**
  * Is the game data loaded
  *
- * Загружены ли данные игры
  */
 let isLoadGame = false;
 /**
  * Headers of the last request
  *
- * Заголовки последнего запроса
  */
 let lastHeaders = {};
 let oasloHeaders = {};
 /**
  * Information about sent gifts
  *
- * Информация об отправленных подарках
  */
 let freebieCheckInfo = null;
 /**
@@ -72,7 +66,6 @@ let missionBattle = null;
 /**
  * User data
  *
- * Данные пользователя
  */
 let userInfo;
 this.isTimeBetweenNewDays = function () {
@@ -95,6 +88,7 @@ function getUserInfo() {
 	return userInfo;
 }
 
+/** Collects the game headers and player data required by the Oaslo integration. */
 async function getOasloGameData() {
 	const entries = Object.entries(oasloHeaders).filter(([headerName, value]) => headerName.startsWith('x-') && value);
 	const findHeader = (name, predicate = () => true) =>
@@ -160,6 +154,7 @@ async function getOasloGameData() {
 	};
 }
 
+/** Reports the active player session to Oaslo. */
 function sendOasloPresence(gameData) {
 	return new Promise((resolve, reject) => {
 		GM_xmlhttpRequest({
@@ -173,6 +168,7 @@ function sendOasloPresence(gameData) {
 	});
 }
 
+/** Initializes Oaslo and opens its setup page for the current session. */
 function openOasloSetup(gameData) {
 	return new Promise((resolve, reject) => {
 		GM_xmlhttpRequest({
@@ -202,7 +198,6 @@ function openOasloSetup(gameData) {
 /**
  * Original methods for working with AJAX
  *
- * Оригинальные методы для работы с AJAX
  */
 const original = {
 	open: XMLHttpRequest.prototype.open,
@@ -213,11 +208,9 @@ const original = {
 };
 
 // Sentry blocking
-// Блокировка наблюдателя
 this.fetch = function (url, options) {
 	/**
 	 * Checking URL for blocking
-	 * Проверяем URL на блокировку
 	 */
 	if (url.includes('sentry.io')) {
 		console.log('%cFetch blocked', 'color: red');
@@ -235,7 +228,6 @@ this.fetch = function (url, options) {
 		/**
 		 * Mock response for blocked URL
 		 *
-		 * Мокаем ответ для заблокированного URL
 		 */
 		const mockResponse = new Response('Custom blocked response', {
 			status: 200,
@@ -246,7 +238,6 @@ this.fetch = function (url, options) {
 	} else {
 		/**
 		 * Call the original fetch function for all other URLs
-		 * Вызываем оригинальную функцию fetch для всех других URL
 		 */
 		return original.fetch.apply(this, arguments);
 	}
@@ -255,44 +246,37 @@ this.fetch = function (url, options) {
 /**
  * Decoder for converting byte data to JSON string
  *
- * Декодер для перобразования байтовых данных в JSON строку
  */
 const decoder = new TextDecoder("utf-8");
 /**
  * Stores a history of requests
  *
- * Хранит историю запросов
  */
 let requestHistory = {};
 /**
  * URL for API requests
  *
- * URL для запросов к API
  */
 let apiUrl = '';
 
 /**
  * Connecting to the game code
  *
- * Подключение к коду игры
  */
 this.cheats = new hackGame();
 /**
  * The function of calculating the results of the battle
  *
- * Функция расчета результатов боя
  */
 this.BattleCalc = cheats.BattleCalc;
 /**
  * Sending a request available through the console
  *
- * Отправка запроса доступная через консоль
  */
 this.SendRequest = send;
 /**
  * Simple combat calculation available through the console
  *
- * Простой расчет боя доступный через консоль
  */
 this.Calc = function (data) {
 	const battleType = data?.effects?.battleConfig ?? data?.type;
@@ -313,8 +297,6 @@ this.Calc = function (data) {
  * Usage example (returns information about a character):
  * const userInfo = await Send('{"calls":[{"name":"userGetInfo","args":{},"ident":"body"}]}')
  *
- * Короткий асинхронный запрос
- * Пример использования (возвращает информацию о персонаже):
  * const userInfo = await Send('{"calls":[{"name":"userGetInfo","args":{},"ident":"body"}]}')
 */
 this.Send = function (json, pr) {
@@ -737,7 +719,7 @@ const i18nLangData = {
 		SEERGAME_PROGRESS: 'Round {round}, Consecutive wins: {streak}',
 	},
 	ru: {
-		/* Чекбоксы */
+		/* Checkboxes */
 		SKIP_FIGHTS: 'Пропуск боев',
 		SKIP_FIGHTS_TITLE: 'Пропуск боев в запределье и арене титанов, автопропуск в башне и кампании',
 		ENDLESS_CARDS: 'Бесконечные карты',
@@ -763,12 +745,12 @@ const i18nLangData = {
 		SECRET_WEALTH_CHECKBOX: 'Автоматическая покупка в магазине "Тайное Богатство" при заходе в игру',
 		HIDE_SERVERS: 'Свернуть сервера',
 		HIDE_SERVERS_TITLE: 'Скрывать неиспользуемые сервера',
-		/* Поля ввода */
+		/* Input fields */
 		HOW_MUCH_TITANITE: 'Сколько фармим титанита',
 		COMBAT_SPEED: 'Множитель ускорения боя',
 		NUMBER_OF_TEST: 'Количество тестовых боев',
 		NUMBER_OF_AUTO_BATTLE: 'Количество попыток автобоев',
-		/* Кнопки */
+		/* Buttons */
 		RUN_SCRIPT: 'Запустить скрипт',
 		TO_DO_EVERYTHING: 'Сделать все',
 		TO_DO_EVERYTHING_TITLE: 'Выполнить несколько действий',
@@ -808,7 +790,7 @@ const i18nLangData = {
 		GUILD_WAR_TITLE: 'Быстрый переход к Войне гильдий',
 		SECRET_WEALTH: 'Тайное богатство',
 		SECRET_WEALTH_TITLE: 'Купить что-то в магазине "Тайное богатство"',
-		/* Разное */
+		/* Miscellaneous */
 		BOTTOM_URLS:
 			'<a href="https://t.me/+q6gAGCRpwyFkNTYy" target="_blank" title="Telegram"><svg width="20" height="20" style="margin:2px" viewBox="0 0 1e3 1e3" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="a" x1="50%" x2="50%" y2="99.258%"><stop stop-color="#2AABEE" offset="0"/><stop stop-color="#229ED9" offset="1"/></linearGradient></defs><g fill-rule="evenodd"><circle cx="500" cy="500" r="500" fill="url(#a)"/><path d="m226.33 494.72c145.76-63.505 242.96-105.37 291.59-125.6 138.86-57.755 167.71-67.787 186.51-68.119 4.1362-0.072862 13.384 0.95221 19.375 5.8132 5.0584 4.1045 6.4501 9.6491 7.1161 13.541 0.666 3.8915 1.4953 12.756 0.83608 19.683-7.5246 79.062-40.084 270.92-56.648 359.47-7.0089 37.469-20.81 50.032-34.17 51.262-29.036 2.6719-51.085-19.189-79.207-37.624-44.007-28.847-68.867-46.804-111.58-74.953-49.366-32.531-17.364-50.411 10.769-79.631 7.3626-7.6471 135.3-124.01 137.77-134.57 0.30968-1.3202 0.59708-6.2414-2.3265-8.8399s-7.2385-1.7099-10.352-1.0032c-4.4137 1.0017-74.715 47.468-210.9 139.4-19.955 13.702-38.029 20.379-54.223 20.029-17.853-0.3857-52.194-10.094-77.723-18.393-31.313-10.178-56.199-15.56-54.032-32.846 1.1287-9.0037 13.528-18.212 37.197-27.624z" fill="#fff"/></g></svg></a><a href="https://vk.com/invite/YNPxKGX" target="_blank" title="Вконтакте"><svg width="20" height="20" style="margin:2px" viewBox="0 0 101 100" xmlns="http://www.w3.org/2000/svg"><g clip-path="url(#a)"><path d="M0.5 48C0.5 25.3726 0.5 14.0589 7.52944 7.02944C14.5589 0 25.8726 0 48.5 0H52.5C75.1274 0 86.4411 0 93.4706 7.02944C100.5 14.0589 100.5 25.3726 100.5 48V52C100.5 74.6274 100.5 85.9411 93.4706 92.9706C86.4411 100 75.1274 100 52.5 100H48.5C25.8726 100 14.5589 100 7.52944 92.9706C0.5 85.9411 0.5 74.6274 0.5 52V48Z" fill="#07f"/><path d="m53.708 72.042c-22.792 0-35.792-15.625-36.333-41.625h11.417c0.375 19.083 8.7915 27.167 15.458 28.833v-28.833h10.75v16.458c6.5833-0.7083 13.499-8.2082 15.832-16.458h10.75c-1.7917 10.167-9.2917 17.667-14.625 20.75 5.3333 2.5 13.875 9.0417 17.125 20.875h-11.834c-2.5417-7.9167-8.8745-14.042-17.25-14.875v14.875h-1.2919z" fill="#fff"/></g><defs><clipPath id="a"><rect transform="translate(.5)" width="100" height="100" fill="#fff"/></clipPath></defs></svg></a>',
 		GIFTS_SENT: 'Подарки отправлены!',
@@ -1201,7 +1183,6 @@ String.prototype.sprintf = String.prototype.sprintf ||
 /**
  * Checkboxes
  *
- * Чекбоксы
  */
 const checkboxes = {
 	passBattle: {
@@ -1247,7 +1228,6 @@ const checkboxes = {
 		/**
 		 * A crutch to get the field before getting the character id
 		 *
-		 * Костыль чтоб получать поле до получения id персонажа
 		 */
 		default: (() => {
 			$result = false;
@@ -1265,7 +1245,6 @@ const checkboxes = {
 		get title() { return I18N('DAILY_QUESTS_TITLE'); },
 		default: false,
 	},
-	// Потасовки
 	autoBrawls: {
 		get label() { return I18N('BRAWLS'); },
 		cbox: null,
@@ -1323,7 +1302,6 @@ const checkboxes = {
 /**
  * Get checkbox state
  *
- * Получить состояние чекбокса
  */
 function isChecked(checkBox) {
 	const { checkboxes } = HWHData;
@@ -1335,7 +1313,6 @@ function isChecked(checkBox) {
 /**
  * Input fields
  *
- * Поля ввода
  */
 const inputs = {
 	countTitanit: {
@@ -1367,7 +1344,6 @@ const inputs = {
 /**
  * Checks the checkbox
  *
- * Поплучить данные поля ввода
  */
 function getInput(inputName) {
 	const { inputs } = HWHData;
@@ -1377,7 +1353,6 @@ function getInput(inputName) {
 /**
  * Control FPS
  *
- * Контроль FPS
  */
 let nextAnimationFrame = Date.now();
 const oldRequestAnimationFrame = this.requestAnimationFrame;
@@ -1394,7 +1369,6 @@ this.requestAnimationFrame = async function (e) {
 /**
  * List of main menu buttons
  *
- * Список кнопочек основного меню
  */
 const buttons = {
 	getOutland: {
@@ -1588,7 +1562,6 @@ const buttons = {
 			}
 		},
 	},
-	// Архидемон
 	bossRatingEventDemon: {
 		get name() {
 			return I18N('ARCHDEMON');
@@ -1602,7 +1575,6 @@ const buttons = {
 		hide: true,
 		color: 'red',
 	},
-	// Горнило душ
 	bossRatingEventSouls: {
 		isCombine: true,
 		hide: true,
@@ -1680,7 +1652,6 @@ const buttons = {
 /**
  * List of buttons by the "Actions" button
  *
- * Список кнопочек по кнопке "Действия"
  */
 
 const actionsPopupButtons = [
@@ -1821,7 +1792,6 @@ const actionsPopupButtons = [
 /**
  * List of buttons by the "Others" button
  *
- * Список кнопочек по кнопке "Разное"
  */
 const othersPopupButtons = [
 	{
@@ -2021,7 +1991,6 @@ const othersPopupButtons = [
 /**
  * Display buttons
  *
- * Вывести кнопочки
  */
 function addControlButtons() {
 	const { ScriptMenu } = HWHClasses;
@@ -2042,7 +2011,6 @@ function addControlButtons() {
 /**
  * Adds links
  *
- * Добавляет ссылки
  */
 function addBottomUrls() {
 	const { ScriptMenu } = HWHClasses;
@@ -2052,37 +2020,31 @@ function addBottomUrls() {
 /**
  * Stop repetition of the mission
  *
- * Остановить повтор миссии
  */
 let isStopSendMission = false;
 /**
  * There is a repetition of the mission
  *
- * Идет повтор миссии
  */
 let isSendsMission = false;
 /**
  * Data on the past mission
  *
- * Данные о прошедшей мисии
  */
 let lastMissionStart = {}
 /**
  * Start time of the last battle in the company
  *
- * Время начала последнего боя в кампании
  */
 let lastMissionBattleStart = 0;
 /**
  * Data for calculating the last battle with the boss
  *
- * Данные для расчете последнего боя с боссом
  */
 let lastBossBattle = null;
 /**
  * Information about the last battle
  *
- * Данные о прошедшей битве
  */
 let lastBattleArg = {}
 let lastBossBattleStart = null;
@@ -2142,25 +2104,21 @@ this.getInvasionBosses = (() => {
 /**
  * The name of the function of the beginning of the battle
  *
- * Имя функции начала боя
  */
 let nameFuncStartBattle = '';
 /**
  * The name of the function of the end of the battle
  *
- * Имя функции конца боя
  */
 let nameFuncEndBattle = '';
 /**
  * Data for calculating the last battle
  *
- * Данные для расчета последнего боя
  */
 let lastBattleInfo = null;
 /**
  * The ability to cancel the battle
  *
- * Возможность отменить бой
  */
 let isCancalBattle = true;
 
@@ -2171,26 +2129,22 @@ function setIsCancalBattle(value) {
 /**
  * Certificator of the last open nesting doll
  *
- * Идетификатор последней открытой матрешки
  */
 let lastRussianDollId = null;
 /**
  * Cancel the training guide
  *
- * Отменить обучающее руководство
  */
 this.isCanceledTutorial = false;
 
 /**
  * Data from the last question of the quiz
  *
- * Данные последнего вопроса викторины
  */
 let lastQuestion = null;
 /**
  * Answer to the last question of the quiz
  *
- * Ответ на последний вопрос викторины
  */
 let lastAnswer = null;
 
@@ -2199,33 +2153,27 @@ let correctShowOpenArtifact = 0;
  * Data for the last battle in the dungeon
  * (Fix endless cards)
  *
- * Данные для последнего боя в подземке
- * (Исправление бесконечных карт)
  */
 let lastDungeonBattleData = null;
 /**
  * Start time of the last battle in the dungeon
  *
- * Время начала последнего боя в подземелье
  */
 let lastDungeonBattleStart = 0;
 /**
  * Subscription end time
  *
- * Время окончания подписки
  */
 let subEndTime = 0;
 /**
  * Number of prediction cards
  *
- * Количество карт предсказаний
  */
 const countPredictionCard = 0;
 
 /**
  * Brawl pack
  *
- * Пачка для потасовок
  */
 let brawlsPack = null;
 
@@ -2233,8 +2181,7 @@ let clanDominationGetInfo = null;
 /**
  * Copies the text to the clipboard
  *
- * Копирует тест в буфер обмена
- * @param {*} text copied text // копируемый текст
+ * @param {*} text copied text //
  */
 function copyText(text) {
 	const copyTextarea = document.createElement("textarea");
@@ -2248,7 +2195,6 @@ function copyText(text) {
 /**
  * Returns the history of requests
  *
- * Возвращает историю запросов
  */
 this.getRequestHistory = function() {
 	return requestHistory;
@@ -2256,7 +2202,6 @@ this.getRequestHistory = function() {
 /**
  * Generates a random integer from min to max
  *
- * Гененирует случайное целое число от min до max
  */
 const random = function (min, max) {
 	return Math.floor(Math.random() * (max - min + 1) + min);
@@ -2267,7 +2212,6 @@ const randf = function (min, max) {
 /**
  * Clearing the request history
  *
- * Очистка истоии запросов
  */
 setInterval(function () {
 	let now = Date.now();
@@ -2281,7 +2225,6 @@ setInterval(function () {
 /**
  * Displays the dialog box
  *
- * Отображает диалоговое окно
  */
 function confShow(message, yesCallback, noCallback) {
 	let buts = [];
@@ -2308,7 +2251,6 @@ function confShow(message, yesCallback, noCallback) {
 /**
  * Override/proxy the method for creating a WS package send
  *
- * Переопределяем/проксируем метод создания отправки WS пакета
  */
 WebSocket.prototype.send = function (data) {
 	if (!this.isSetOnMessage) {
@@ -2330,7 +2272,6 @@ WebSocket.prototype.send = function (data) {
 				}
 			}
 
-			// Вызов обработчиков
 			Events.emit('WSMessage', messageType, parsedData?.result, event);
 
 			if (typeof oldOnmessage === 'function') {
@@ -2344,7 +2285,6 @@ WebSocket.prototype.send = function (data) {
 /**
  * Overriding/Proxying the Ajax Request Creation Method
  *
- * Переопределяем/проксируем метод создания Ajax запроса
  */
 XMLHttpRequest.prototype.open = function (method, url, async, user, password) {
 	const urls = ['.nextersglobal.com/api/', '.hero-wars.cn/api/'];
@@ -2374,7 +2314,6 @@ XMLHttpRequest.prototype.open = function (method, url, async, user, password) {
 /**
  * Overriding/Proxying the header setting method for the AJAX request
  *
- * Переопределяем/проксируем метод установки заголовков для AJAX запроса
  */
 XMLHttpRequest.prototype.setRequestHeader = function (name, value, check) {
 	if (typeof value === 'string') {
@@ -2396,7 +2335,6 @@ XMLHttpRequest.prototype.setRequestHeader = function (name, value, check) {
 /**
  * Overriding/Proxying the AJAX Request Sending Method
  *
- * Переопределяем/проксируем метод отправки AJAX запроса
  */
 XMLHttpRequest.prototype.send = async function (sourceData) {
 	if (this.uniqid in requestHistory) {
@@ -2412,7 +2350,6 @@ XMLHttpRequest.prototype.send = async function (sourceData) {
 		/**
 		 * Game loading event
 		 *
-		 * Событие загрузки игры
 		 */
 		if (headers["X-Request-Id"] > 2 && !isLoadGame) {
 			isLoadGame = true;
@@ -2452,13 +2389,11 @@ XMLHttpRequest.prototype.send = async function (sourceData) {
 		/**
 		 * Outgoing request data processing
 		 *
-		 * Обработка данных исходящего запроса
 		 */
 		sourceData = await checkChangeSend.call(this, sourceData, tempData);
 		/**
 		 * Handling incoming request data
 		 *
-		 * Обработка данных входящего запроса
 		 */
 		const oldReady = this.onreadystatechange;
 		this.onreadystatechange = async function (e) {
@@ -2472,7 +2407,6 @@ XMLHttpRequest.prototype.send = async function (sourceData) {
 				/**
 				 * Replacing incoming request data
 				 *
-				 * Заменна данных входящего запроса
 				 */
 				if (isTextResponse) {
 					await checkChangeResponse.call(this, response);
@@ -2480,12 +2414,10 @@ XMLHttpRequest.prototype.send = async function (sourceData) {
 				/**
 				 * A function to run after the request is executed
 				 *
-				 * Функция запускаемая после выполения запроса
 				 */
 				if (typeof this.onReadySuccess == 'function') {
 					setTimeout(this.onReadySuccess, 500);
 				}
-				/** Удаляем из истории запросов битвы с боссом */
 				if ('invasion_bossStart' in requestHistory[this.uniqid].calls) delete requestHistory[this.uniqid];
 			}
 			if (oldReady) {
@@ -2534,14 +2466,13 @@ XMLHttpRequest.prototype.send = async function (sourceData) {
 /**
  * Processing and substitution of outgoing data
  *
- * Обработка и подмена исходящих данных
  */
+/** Inspects and optionally modifies outgoing game API calls. */
 async function checkChangeSend(sourceData, tempData) {
 	try {
 		/**
-		 * A function that replaces battle data with incorrect ones to cancel combatя
+		 * A function that replaces battle data with incorrect ones to cancel combat
 		 *
-		 * Функция заменяющая данные боя на неверные для отмены боя
 		 */
 		const fixBattle = function (heroes) {
 			for (const ids in heroes) {
@@ -2555,7 +2486,6 @@ async function checkChangeSend(sourceData, tempData) {
 		/**
 		 * Dialog window 2
 		 *
-		 * Диалоговое окно 2
 		 */
 		const showMsg = async function (msg, ansF, ansS) {
 			if (typeof popup == 'object') {
@@ -2570,7 +2500,6 @@ async function checkChangeSend(sourceData, tempData) {
 		/**
 		 * Dialog window 3
 		 *
-		 * Диалоговое окно 3
 		 */
 		const showMsgs = async function (msg, ansF, ansS, ansT) {
 			return await popup.confirm(msg, [
@@ -2586,7 +2515,6 @@ async function checkChangeSend(sourceData, tempData) {
 			requestHistory[this.uniqid].calls[call.name] = call.ident;
 			/**
 			 * Cancellation of the battle in adventures, on VG and with minions of Asgard
-			 * Отмена боя в приключениях, на ВГ и с прислужниками Асгарда
 			 */
 			if (
 				(call.name == 'adventure_endBattle' ||
@@ -2722,15 +2650,14 @@ async function checkChangeSend(sourceData, tempData) {
 						}
 					}
 				}
-				// Потасовки
 				if (isChecked('autoBrawls') && !HWHClasses.executeBrawls.isBrawlsAutoStart && call.name == 'brawl_endBattle') {
 				}
 			}
 			/**
 			 * Save pack for Brawls
 			 *
-			 * Сохраняем пачку для потасовок
 			 */
+			// Save the selected team before an automatic Brawl begins.
 			if (isChecked('autoBrawls') && !HWHClasses.executeBrawls.isBrawlsAutoStart && call.name == 'brawl_startBattle') {
 				console.log(JSON.stringify(call.args));
 				brawlsPack = call.args;
@@ -2760,7 +2687,6 @@ async function checkChangeSend(sourceData, tempData) {
 			}
 			/**
 			 * Canceled fight in Asgard
-			 * Отмена боя в Асгарде
 			 */
 			if (call.name == 'clanRaid_endBossBattle' && isChecked('cancelBattle')) {
 				const bossDamage = call.args.progress[0].defenders.heroes[1].extra;
@@ -2793,7 +2719,6 @@ async function checkChangeSend(sourceData, tempData) {
 				);
 				if (resultPopup) {
 					if (resultPopup == 2) {
-						// Отключено/Disabled
 						setProgress(I18N('LETS_FIX'), false);
 						await new Promise((e) => setTimeout(e, 0));
 						const cloneBattle = structuredClone(lastBossBattle);
@@ -2859,14 +2784,12 @@ async function checkChangeSend(sourceData, tempData) {
 			}
 			/**
 			 * Save the Asgard Boss Attack Pack
-			 * Сохраняем пачку для атаки босса Асгарда
 			 */
 			if (call.name == 'clanRaid_startBossBattle') {
 				console.log(JSON.stringify(call.args));
 			}
 			/**
 			 * Saving the request to start the last battle
-			 * Сохранение запроса начала последнего боя
 			 */
 			if (
 				call.name == 'clanWarAttack' ||
@@ -2902,7 +2825,6 @@ async function checkChangeSend(sourceData, tempData) {
 			}
 			/**
 			 * Disable spending divination cards
-			 * Отключить трату карт предсказаний
 			 */
 			if (call.name == 'dungeonEndBattle') {
 				if (call.args.isRaid) {
@@ -2916,7 +2838,6 @@ async function checkChangeSend(sourceData, tempData) {
 				console.log(`Cards: ${HWHData.countPredictionCard}`);
 				/**
 				 * Fix endless cards
-				 * Исправление бесконечных карт
 				 */
 				const lastBattle = lastDungeonBattleData;
 				if (lastBattle && !call.args.isRaid) {
@@ -2943,12 +2864,10 @@ async function checkChangeSend(sourceData, tempData) {
 			}
 			/**
 			 * Quiz Answer
-			 * Ответ на викторину
 			 */
 			if (call.name == 'quiz_answer') {
 				/**
 				 * Automatically changes the answer to the correct one if there is one.
-				 * Автоматически меняет ответ на правильный если он есть
 				 */
 				if (lastAnswer && isChecked('getAnswer')) {
 					call.args.answerId = lastAnswer;
@@ -2958,7 +2877,6 @@ async function checkChangeSend(sourceData, tempData) {
 			}
 			/**
 			 * Present
-			 * Подарки
 			 */
 			if (call.name == 'freebieCheck') {
 				freebieCheckInfo = call;
@@ -2991,7 +2909,6 @@ async function checkChangeSend(sourceData, tempData) {
 			}
 			/**
 			 * Getting mission data for auto-repeat
-			 * Получение данных миссии для автоповтора
 			 */
 			if (isChecked('repeatMission') && call.name == 'missionEnd') {
 				let missionInfo = {
@@ -3016,7 +2933,6 @@ async function checkChangeSend(sourceData, tempData) {
 			}
 			/**
 			 * Getting mission data
-			 * Получение данных миссии
 			 * missionTimer
 			 */
 			if (call.name == 'missionStart') {
@@ -3026,7 +2942,6 @@ async function checkChangeSend(sourceData, tempData) {
 
 			/**
 			 * Specify the quantity for Titan Orbs and Pet Eggs
-			 * Указать количество для сфер титанов и яиц петов
 			 */
 			if (
 				isChecked('countControl') &&
@@ -3073,7 +2988,6 @@ async function checkChangeSend(sourceData, tempData) {
 				lastRussianDollId = call.args.libId;
 				/**
 				 * Specify quantity for Platinum Box and Heroes Box
-				 * Указать количество для платиновых шкатулок и ящиков с героями
 				 */
 				const lootBoxInfo = lib.data.inventoryItem.consumable[call.args.libId];
 				const playerChoiceType = lootBoxInfo?.effectDescription?.playerChoiceType;
@@ -3108,6 +3022,7 @@ async function checkChangeSend(sourceData, tempData) {
 					}
 				}
 			}
+			// Increase the campaign raid limit after a workshop buff is created.
 			if (call.name == 'workshopBuff_create') {
 				const { invasionInfo, invasionDataPacks } = HWHData;
 				const pack = invasionDataPacks[invasionInfo.bossLvl];
@@ -3133,7 +3048,6 @@ async function checkChangeSend(sourceData, tempData) {
 			}
 			/**
 			 * Changing the maximum number of raids in the campaign
-			 * Изменение максимального количества рейдов в кампании
 			 */
 			// if (call.name == 'missionRaid') {
 			// 	if (isChecked('countControl') && call.args.times > 1) {
@@ -3166,8 +3080,8 @@ async function checkChangeSend(sourceData, tempData) {
 /**
  * Processing and substitution of incoming data
  *
- * Обработка и подмена входящих данных
  */
+/** Inspects and optionally modifies incoming game API responses. */
 async function checkChangeResponse(response) {
 	try {
 		this._isChangeResponse = false;
@@ -3175,7 +3089,6 @@ async function checkChangeResponse(response) {
 		respond = JSON.parse(response);
 		/**
 		 * If the request returned an error removes the error (removes synchronization errors)
-		 * Если запрос вернул ошибку удаляет ошибку (убирает ошибки синхронизации)
 		 */
 		if (respond.error) {
 			this._isChangeResponse = true;
@@ -3196,14 +3109,12 @@ async function checkChangeResponse(response) {
 		for (const call of respond.results) {
 			/**
 			 * Obtaining initial data for completing quests
-			 * Получение исходных данных для выполнения квестов
 			 */
 			if (readQuestInfo) {
 				questsInfo[call.ident] = call.result.response;
 			}
 			/**
 			 * Getting a user ID
-			 * Получение идетификатора пользователя
 			 */
 			if (call.ident == callsIdent['registration']) {
 				userId = call.result.response.userId;
@@ -3216,7 +3127,6 @@ async function checkChangeResponse(response) {
 			}
 			/**
 			 * Hiding donation offers 1
-			 * Скрываем предложения доната 1
 			 */
 			if (call.ident == callsIdent['billingGetAll'] && getSaveVal('noOfferDonat')) {
 				const billings = call.result.response?.billings;
@@ -3229,7 +3139,6 @@ async function checkChangeResponse(response) {
 			}
 			/**
 			 * Hiding donation offers 2
-			 * Скрываем предложения доната 2
 			 */
 			if (getSaveVal('noOfferDonat') && (call.ident == callsIdent['offerGetAll'] || call.ident == callsIdent['specialOffer_getAll'])) {
 				let offers = call.result.response;
@@ -3242,7 +3151,6 @@ async function checkChangeResponse(response) {
 			}
 			/**
 			 * Hiding donation offers 3
-			 * Скрываем предложения доната 3
 			 */
 			if (getSaveVal('noOfferDonat') && call.result?.bundleUpdate) {
 				delete call.result.bundleUpdate;
@@ -3250,7 +3158,6 @@ async function checkChangeResponse(response) {
 			}
 			/**
 			 * Hiding donation offers 4
-			 * Скрываем предложения доната 4
 			 */
 			if (call.result?.specialOffers) {
 				const offers = call.result.specialOffers;
@@ -3261,7 +3168,6 @@ async function checkChangeResponse(response) {
 			}
 			/**
 			 * Copies a quiz question to the clipboard
-			 * Копирует вопрос викторины в буфер обмена и получает на него ответ если есть
 			 */
 			if (call.ident == callsIdent['quiz_getNewQuestion']) {
 				let quest = call.result.response;
@@ -3302,7 +3208,6 @@ async function checkChangeResponse(response) {
 			}
 			/**
 			 * Submits a question with an answer to the database
-			 * Отправляет вопрос с ответом в базу данных
 			 */
 			if (call.ident == callsIdent['quiz_answer']) {
 				const answer = call.result.response;
@@ -3321,7 +3226,6 @@ async function checkChangeResponse(response) {
 			}
 			/**
 			 * Get user data
-			 * Получить даныне пользователя
 			 */
 			if (call.ident == callsIdent['userGetInfo']) {
 				let user = call.result.response;
@@ -3334,7 +3238,6 @@ async function checkChangeResponse(response) {
 			}
 			/**
 			 * Access to Prestige rewards and quests on a non-prestige day
-			 * Доступ к наградам и квестам престижа в день без престижа
 			 */
 			if (call.ident == callsIdent['clan_prestigeGetInfo']) {
 				if (!call.result.response.prestigeId) {
@@ -3345,7 +3248,6 @@ async function checkChangeResponse(response) {
 			}
 			/**
 			 * Start of the battle for recalculation
-			 * Начало боя для прерасчета
 			 */
 			if (
 				call.ident == callsIdent['clanWarAttack'] ||
@@ -3430,7 +3332,6 @@ async function checkChangeResponse(response) {
 			}
 			/**
 			 * Start of the Asgard boss fight
-			 * Начало боя с боссом Асгарда
 			 */
 			if (call.ident == callsIdent['clanRaid_startBossBattle']) {
 				lastBossBattle = call.result.response.battle;
@@ -3443,7 +3344,6 @@ async function checkChangeResponse(response) {
 			}
 			/**
 			 * Cancel tutorial
-			 * Отмена туториала
 			 */
 			if (isCanceledTutorial && call.ident == callsIdent['tutorialGetInfo']) {
 				let chains = call.result.response.chains;
@@ -3454,14 +3354,12 @@ async function checkChangeResponse(response) {
 			}
 			/**
 			 * Sum the result of opening Pet Eggs
-			 * Суммирование результата открытия яиц питомцев
 			 */
 			if (isChecked('countControl') && call.ident == callsIdent['pet_chestOpen']) {
 				const rewards = call.result.response.rewards;
 				if (rewards.length > 10) {
 					/**
 					 * Removing pet cards
-					 * Убираем карточки петов
 					 */
 					for (const reward of rewards) {
 						if (reward.petCard) {
@@ -3488,7 +3386,6 @@ async function checkChangeResponse(response) {
 			}
 			/**
 			 * Removing titan cards
-			 * Убираем карточки титанов
 			 */
 			if (call.ident == callsIdent['titanUseSummonCircle']) {
 				if (call.result.response.rewards.length > 10) {
@@ -3502,7 +3399,6 @@ async function checkChangeResponse(response) {
 			}
 			/**
 			 * Auto-repeat opening matryoshkas
-			 * АвтоПовтор открытия матрешек
 			 */
 			if (isChecked('countControl') && call.ident == callsIdent['consumableUseLootBox']) {
 				let [countLootBox, lootBox] = Object.entries(call.result.response).pop();
@@ -3533,7 +3429,6 @@ async function checkChangeResponse(response) {
 			}
 			/**
 			 * Dungeon recalculation (fix endless cards)
-			 * Прерасчет подземки (исправление бесконечных карт)
 			 */
 			if (call.ident == callsIdent['dungeonStartBattle']) {
 				lastDungeonBattleData = call.result.response;
@@ -3541,14 +3436,12 @@ async function checkChangeResponse(response) {
 			}
 			/**
 			 * Getting the number of prediction cards
-			 * Получение количества карт предсказаний
 			 */
 			if (call.ident == callsIdent['inventoryGet']) {
 				HWHData.countPredictionCard = call.result.response.consumable[81] || 0;
 			}
 			/**
 			 * Getting subscription status
-			 * Получение состояния подписки
 			 */
 			if (call.ident == callsIdent['subscriptionGetInfo']) {
 				const subscription = call.result.response.subscription;
@@ -3558,7 +3451,6 @@ async function checkChangeResponse(response) {
 			}
 			/**
 			 * Getting prediction cards
-			 * Получение карт предсказаний
 			 */
 			if (call.ident == callsIdent['questFarm']) {
 				const consumable = call.result.response?.consumable;
@@ -3569,7 +3461,6 @@ async function checkChangeResponse(response) {
 			}
 			/**
 			 * Hiding extra servers
-			 * Скрытие лишних серверов
 			 */
 			if (call.ident == callsIdent['serverGetAll'] && isChecked('hideServers')) {
 				let servers = call.result.response.users.map((s) => s.serverId);
@@ -3578,7 +3469,6 @@ async function checkChangeResponse(response) {
 			}
 			/**
 			 * Displays player positions in the adventure
-			 * Отображает позиции игроков в приключении
 			 */
 			if (call.ident == callsIdent['adventure_getLobbyInfo']) {
 				const users = Object.values(call.result.response.users);
@@ -3599,12 +3489,10 @@ async function checkChangeResponse(response) {
 			}
 			/**
 			 * Automatic launch of a raid at the end of the adventure
-			 * Автоматический запуск рейда при окончании приключения
 			 */
 			if (call.ident == callsIdent['adventure_end']) {
 				autoRaidAdventure();
 			}
-			/** Удаление лавки редкостей */
 			if (call.ident == callsIdent['missionRaid']) {
 				if (call.result?.heroesMerchant) {
 					delete call.result.heroesMerchant;
@@ -3615,7 +3503,6 @@ async function checkChangeResponse(response) {
 			if (call.ident == callsIdent['missionStart']) {
 				missionBattle = call.result.response;
 			}
-			/** Награды турнира стихий */
 			if (call.ident == callsIdent['hallOfFameGetTrophies']) {
 				const trophys = call.result.response;
 				const calls = [];
@@ -3824,8 +3711,8 @@ async function checkChangeResponse(response) {
 /**
  * Request an answer to a question
  *
- * Запрос ответа на вопрос
  */
+/** Requests a known answer for a quiz question. */
 async function getAnswer(question) {
 	// eW91dHUuYmUvZFF3NHc5V2dYY1E=
 	const quizAPI = new ZingerYWebsiteAPI('getAnswer.php', arguments, { question });
@@ -3850,8 +3737,8 @@ async function getAnswer(question) {
 /**
  * Submitting a question and answer to a database
  *
- * Отправка вопроса и ответа в базу данных
  */
+/** Submits a quiz question and answer to the shared answer service. */
 function sendAnswerInfo(answerInfo) {
 	// MTIzNDU2Nzg5MA==
 	const quizAPI = new ZingerYWebsiteAPI('setAnswer.php', arguments, { answerInfo });
@@ -3871,8 +3758,8 @@ function sendAnswerInfo(answerInfo) {
 /**
  * Returns the battle type by preset type
  *
- * Возвращает тип боя по типу пресета
  */
+/** Maps a game battle preset to the calculator configuration. */
 function getBattleType(strBattleType) {
 	if (!strBattleType) {
 		return null;
@@ -3889,8 +3776,8 @@ function getBattleType(strBattleType) {
 		case 'titan_mission':
 		case 'epic_brawl_titan':
 			return 'get_titanPvpManual';
-		case 'clan_raid': // Asgard Boss // Босс асгарда
-		case 'adventure': // Adventures // Приключения
+		case 'clan_raid': // Asgard Boss
+		case 'adventure': // Adventures
 		case 'clan_global_pvp':
 		case 'epic_brawl':
 		case 'clan_pvp':
@@ -3936,7 +3823,6 @@ function getBattleType(strBattleType) {
 /**
  * Returns the class name of the passed object
  *
- * Возвращает название класса переданного объекта
  */
 function getClass(obj) {
 	return {}.toString.call(obj).slice(8, -1);
@@ -3944,7 +3830,6 @@ function getClass(obj) {
 /**
  * Calculates the request signature
  *
- * Расчитывает сигнатуру запроса
  */
 this.getSignature = function(headers, data) {
 	const sign = {
@@ -4108,7 +3993,6 @@ const extentionsList = [];
 /**
  * Creates an interface
  *
- * Создает интерфейс
  */
 function createInterface() {
 	popup.init();
@@ -4173,7 +4057,6 @@ function addControls() {
 		checkboxes[name].cbox = scriptMenu.addCheckbox(checkboxes[name].label, checkboxes[name].title, checkboxDetails);
 		/**
 		 * Getting the state of checkboxes from storage
-		 * Получаем состояние чекбоксов из storage
 		 */
 		let val = storage.get(name, null);
 		if (val != null) {
@@ -4184,7 +4067,6 @@ function addControls() {
 		}
 		/**
 		 * Tracing the change event of the checkbox for writing to storage
-		 * Отсеживание события изменения чекбокса для записи в storage
 		 */
 		checkboxes[name].cbox.dataset['name'] = name;
 		checkboxes[name].cbox.addEventListener('change', async function (event) {
@@ -4211,7 +4093,6 @@ function addControls() {
 		inputs[name].input = scriptMenu.addInputText(inputs[name].title, false, inputDetails);
 		/**
 		 * Get inputText state from storage
-		 * Получаем состояние inputText из storage
 		 */
 		let val = storage.get(name, null);
 		if (val != null) {
@@ -4222,7 +4103,6 @@ function addControls() {
 		}
 		/**
 		 * Tracing a field change event for a record in storage
-		 * Отсеживание события изменения поля для записи в storage
 		 */
 		inputs[name].input.dataset['name'] = name;
 		inputs[name].input.addEventListener('input', function () {
@@ -4240,8 +4120,8 @@ function addControls() {
 /**
  * Sending a request
  *
- * Отправка запроса
  */
+/** Sends a raw game API request using the latest intercepted request headers. */
 function send(json, callback, pr) {
 	if (typeof json == 'string') {
 		json = JSON.parse(json);
@@ -4256,37 +4136,30 @@ function send(json, callback, pr) {
 	json = JSON.stringify(json);
 	/**
 	 * We get the headlines of the previous intercepted request
-	 * Получаем заголовки предыдущего перехваченого запроса
 	 */
 	let headers = lastHeaders;
 	/**
 	 * We increase the header of the query Certifier by 1
-	 * Увеличиваем заголовок идетификатора запроса на 1
 	 */
 	headers["X-Request-Id"]++;
 	/**
 	 * We calculate the title with the signature
-	 * Расчитываем заголовок с сигнатурой
 	 */
 	headers["X-Auth-Signature"] = getSignature(headers, json);
 	/**
 	 * Create a new ajax request
-	 * Создаем новый AJAX запрос
 	 */
 	let xhr = new XMLHttpRequest;
 	/**
 	 * Indicate the previously saved URL for API queries
-	 * Указываем ранее сохраненный URL для API запросов
 	 */
 	xhr.open('POST', apiUrl, true);
 	/**
 	 * Add the function to the event change event
-	 * Добавляем функцию к событию смены статуса запроса
 	 */
 	xhr.onreadystatechange = function() {
 		/**
 		 * If the result of the request is obtained, we call the flask function
-		 * Если результат запроса получен вызываем колбек функцию
 		 */
 		if(xhr.readyState == 4) {
 			callback(xhr.response, pr);
@@ -4294,12 +4167,10 @@ function send(json, callback, pr) {
 	};
 	/**
 	 * Indicate the type of request
-	 * Указываем тип запроса
 	 */
 	xhr.responseType = 'json';
 	/**
 	 * We set the request headers
-	 * Задаем заголовки запроса
 	 */
 	for(let nameHeader in headers) {
 		let head = headers[nameHeader];
@@ -4307,7 +4178,6 @@ function send(json, callback, pr) {
 	}
 	/**
 	 * Sending a request
-	 * Отправляем запрос
 	 */
 	xhr.send(json);
 }
@@ -4316,7 +4186,6 @@ let hideTimeoutProgress = 0;
 /**
  * Hide progress
  *
- * Скрыть прогресс
  */
 function hideProgress(timeout) {
 	const { ScriptMenu } = HWHClasses;
@@ -4329,8 +4198,8 @@ function hideProgress(timeout) {
 /**
  * Progress display
  *
- * Отображение прогресса
  */
+/** Displays the script progress panel and optionally attaches a click handler. */
 function setProgress(text, hide, onclick) {
 	const { ScriptMenu } = HWHClasses;
 	const scriptMenu = ScriptMenu.getInst();
@@ -4347,7 +4216,6 @@ function setProgress(text, hide, onclick) {
 /**
  * Progress added
  *
- * Дополнение прогресса
  */
 function addProgress(text) {
 	const { ScriptMenu } = HWHClasses;
@@ -4358,7 +4226,6 @@ function addProgress(text) {
 /**
  * Check Valkyrie's Blessing subscription activity
  *
- * Проверяет активность подписки на Благославление валькирии
  */
 function isSubActive() {
 	return subEndTime > Date.now();
@@ -4367,7 +4234,6 @@ function isSubActive() {
 /**
  * Returns the timer value depending on the subscription
  *
- * Возвращает значение таймера в зависимости от подписки
  */
 function getTimer(time, div) {
 	let speedDiv = 5;
@@ -4435,8 +4301,8 @@ this.HWHData = {
 /**
  * Game Library
  *
- * Игровая библиотека
  */
+/** Loads and caches the game library data used by automation features. */
 class Library {
 	defaultLibUrl = 'https://heroesru-a.akamaihd.net/vk/v1101/lib/lib.json';
 
@@ -4480,8 +4346,8 @@ this.lib = new Library();
 /**
  * Database
  *
- * База данных
  */
+/** Promise-based wrapper around the script's IndexedDB store. */
 class Database {
 	constructor(dbName, storeName) {
 		this.dbName = dbName;
@@ -4563,7 +4429,6 @@ class Database {
 /**
  * Returns the stored value
  *
- * Возвращает сохраненное значение
  */
 function getSaveVal(saveName, def) {
 	const result = storage.get(saveName, def);
@@ -4574,7 +4439,6 @@ this.HWHFuncs.getSaveVal = getSaveVal;
 /**
  * Stores value
  *
- * Сохраняет значение
  */
 function setSaveVal(saveName, value) {
 	storage.set(saveName, value);
@@ -4584,21 +4448,18 @@ this.HWHFuncs.setSaveVal = setSaveVal;
 /**
  * Database initialization
  *
- * Инициализация базы данных
  */
 const db = new Database(GM_info.script.name, 'settings');
 
 /**
  * Data store
  *
- * Хранилище данных
  */
 const storage = {
 	userId: 0,
 	/**
 	 * Default values
 	 *
-	 * Значения по умолчанию
 	 */
 	values: {},
 	name: GM_info.script.name,
@@ -4630,7 +4491,6 @@ const storage = {
 /**
  * Returns all keys from localStorage that start with prefix (for migration)
  *
- * Возвращает все ключи из localStorage которые начинаются с prefix (для миграции)
  */
 function getAllValuesStartingWith(prefix) {
 	const values = [];
@@ -4648,8 +4508,8 @@ function getAllValuesStartingWith(prefix) {
 /**
  * Opens or migrates to a database
  *
- * Открывает или мигрирует в базу данных
  */
+/** Opens the per-user database and migrates legacy localStorage values. */
 async function openOrMigrateDatabase(userId) {
 	storage.init();
 	storage.userId = userId;
@@ -4679,9 +4539,8 @@ async function openOrMigrateDatabase(userId) {
 }
 
 /**
- * Миксин EventEmitter
- * @param {Class} BaseClass Базовый класс (по умолчанию Object)
- * @returns {Class} Класс с методами EventEmitter
+ * @param {Class} BaseClass
+ * @returns {Class}
  */
 const EventEmitterMixin = (BaseClass = Object) =>
 	class EventEmitter extends BaseClass {
@@ -4691,10 +4550,9 @@ const EventEmitterMixin = (BaseClass = Object) =>
 		}
 
 		/**
-		 * Подписаться на событие
-		 * @param {string} event Имя события
-		 * @param {function} listener Функция-обработчик
-		 * @returns {this} Возвращает экземпляр для чейнинга
+		 * @param {string} event
+		 * @param {function} listener
+		 * @returns {this}
 		 */
 		on(event, listener) {
 			if (typeof listener !== 'function') {
@@ -4709,10 +4567,9 @@ const EventEmitterMixin = (BaseClass = Object) =>
 		}
 
 		/**
-		 * Отписаться от события
-		 * @param {string} event Имя события
-		 * @param {function} listener Функция-обработчик
-		 * @returns {this} Возвращает экземпляр для чейнинга
+		 * @param {string} event
+		 * @param {function} listener
+		 * @returns {this}
 		 */
 		off(event, listener) {
 			if (this._events.has(event)) {
@@ -4726,10 +4583,9 @@ const EventEmitterMixin = (BaseClass = Object) =>
 		}
 
 		/**
-		 * Вызвать событие
-		 * @param {string} event Имя события
-		 * @param {...any} args Аргументы для обработчиков
-		 * @returns {boolean} Было ли событие обработано
+		 * @param {string} event
+		 * @param {...any} args
+		 * @returns {boolean}
 		 */
 		emit(event, ...args) {
 			if (!this._events.has(event)) return false;
@@ -4746,10 +4602,9 @@ const EventEmitterMixin = (BaseClass = Object) =>
 		}
 
 		/**
-		 * Подписаться на событие один раз
-		 * @param {string} event Имя события
-		 * @param {function} listener Функция-обработчик
-		 * @returns {this} Возвращает экземпляр для чейнинга
+		 * @param {string} event
+		 * @param {function} listener
+		 * @returns {this}
 		 */
 		once(event, listener) {
 			const onceWrapper = (...args) => {
@@ -4760,9 +4615,8 @@ const EventEmitterMixin = (BaseClass = Object) =>
 		}
 
 		/**
-		 * Удалить все обработчики для события
-		 * @param {string} [event] Имя события (если не указано - очистить все)
-		 * @returns {this} Возвращает экземпляр для чейнинга
+		 * @param {string} [event]
+		 * @returns {this}
 		 */
 		removeAllListeners(event) {
 			if (event) {
@@ -4774,9 +4628,8 @@ const EventEmitterMixin = (BaseClass = Object) =>
 		}
 
 		/**
-		 * Получить количество обработчиков для события
-		 * @param {string} event Имя события
-		 * @returns {number} Количество обработчиков
+		 * @param {string} event
+		 * @returns {number}
 		 */
 		listenerCount(event) {
 			return this._events.has(event) ? this._events.get(event).size : 0;
@@ -4789,6 +4642,7 @@ class GlobalEventHub extends EventEmitterMixin() {}
 const Events = new GlobalEventHub();
 this.HWHFuncs.Events = Events;
 
+/** Queues script tasks and executes them sequentially with error handling. */
 class TaskManager {
 	isConsoleLog = false;
 	functionRegistry = {};
@@ -4915,7 +4769,6 @@ this.HWHClasses.TaskManager = TaskManager;
 /**
  * Calculates HASH MD5 from string
  *
- * Расчитывает HASH MD5 из строки
  *
  * [js-md5]{@link https://github.com/emn178/js-md5}
  *
@@ -4932,21 +4785,16 @@ class MinimalVirtualInput {
 	static #getValue = null;
 	static #setValue = null;
 
-	// Метод для установки обработчика с новыми колбэками
 	static addKeyEvent({ getValue, setValue }) {
-		// Сохраняем новые колбэки
 		MinimalVirtualInput.#getValue = getValue;
 		MinimalVirtualInput.#setValue = setValue;
 
-		// Удаляем старый обработчик если был
 		MinimalVirtualInput.removeKeyEvent();
 
-		// Устанавливаем новый обработчик
 		MinimalVirtualInput.#currentHandler = MinimalVirtualInput.#handleKeyEvent.bind(MinimalVirtualInput);
 		document.addEventListener('keydown', MinimalVirtualInput.#currentHandler);
 	}
 
-	// Метод для удаления обработчика
 	static removeKeyEvent() {
 		if (MinimalVirtualInput.#currentHandler) {
 			document.removeEventListener('keydown', MinimalVirtualInput.#currentHandler);
@@ -4960,21 +4808,17 @@ class MinimalVirtualInput {
 		}
 
 		const key = event.key;
-		// Преобразуем число в строку для работы с символами
 		const currentValue = MinimalVirtualInput.#getValue().toString();
 
 		switch (key) {
 			case 'Backspace':
-				// Удаляем последний символ
 				if (currentValue.length > 0) {
 					const newValueString = currentValue.slice(0, -1);
-					// Преобразуем обратно в число, если строка не пустая
 					const newValueNumber = newValueString === '' ? 0 : Number(newValueString);
 					MinimalVirtualInput.#setValue(isNaN(newValueNumber) ? 0 : newValueNumber);
 				}
 				break;
 			case 'Delete':
-				// Очищаем значение
 				MinimalVirtualInput.#setValue(0);
 				MinimalVirtualInput.#setValue(0);
 				break;
@@ -4983,7 +4827,6 @@ class MinimalVirtualInput {
 				if (event.ctrlKey || event.metaKey) {
 					navigator.clipboard?.readText().then((text) => {
 						if (text) {
-							// Вставляем текст в конец и преобразуем в число
 							const newValueString = currentValue + text;
 							const newValueNumber = Number(newValueString);
 							MinimalVirtualInput.#setValue(isNaN(newValueNumber) ? 0 : newValueNumber);
@@ -4992,9 +4835,7 @@ class MinimalVirtualInput {
 					event.preventDefault();
 					return;
 				}
-			// Если не Ctrl+V, то обрабатываем как обычный символ
 			default:
-				// Проверяем что символ - цифра
 				if (key.length === 1 && !event.ctrlKey && !event.metaKey && /^\d$/.test(key)) {
 					const newValueString = currentValue + key;
 					const newValueNumber = Number(newValueString);
@@ -5007,6 +4848,7 @@ class MinimalVirtualInput {
 	}
 }
 
+/** Creates the game integration facade and installs method hooks. */
 function hackGame() {
 	const self = this;
 	selfGame = null;
@@ -5017,7 +4859,6 @@ function hackGame() {
 	/**
 	 * List of correspondence of used classes to their names
 	 *
-	 * Список соответствия используемых классов их названиям
 	 */
 	ObjectsList = [
 		{ name: 'BattlePresets', prop: 'game.battle.controller.thread.BattlePresets' },
@@ -5065,12 +4906,10 @@ function hackGame() {
 	/**
 	 * Contains the game classes needed to write and override game methods
 	 *
-	 * Содержит классы игры необходимые для написания и подмены методов игры
 	 */
 	Game = {
 		/**
 		 * Function 'e'
-		 * Функция 'e'
 		 */
 		bindFunc: function (a, b) {
 			if (null == b) return null;
@@ -5085,7 +4924,6 @@ function hackGame() {
 	/**
 	 * Connects to game objects via the object creation event
 	 *
-	 * Подключается к объектам игры через событие создания объекта
 	 */
 	function connectGame() {
 		for (let obj of ObjectsList) {
@@ -5121,11 +4959,9 @@ function hackGame() {
 	 */
 	/**
 	 * Returns the results of the battle to the callback function
-	 * Возвращает в функцию callback результаты боя
-	 * @param {*} battleData battle data данные боя
+	 * @param {*} battleData battle data
 	 * @param {*} battleConfig combat configuration type options:
 	 *
-	 * тип конфигурации боя варианты:
 	 *
 	 * "get_invasion", "get_titanPvpManual", "get_titanPvp",
 	 * "get_titanClanPvp","get_clanPvp","get_titan","get_boss",
@@ -5133,8 +4969,7 @@ function hackGame() {
 	 *
 	 * You can specify the xYc function in the game.assets.storage.BattleAssetStorage class
 	 *
-	 * Можно уточнить в классе game.assets.storage.BattleAssetStorage функция xYc
-	 * @param {*} callback функция в которую вернуться результаты боя
+	 * @param {*} callback
 	 */
 	this.BattleCalc = function (battleData, battleConfig, callback) {
 		// battleConfig = battleConfig || getBattleType(battleData.type)
@@ -5182,10 +5017,9 @@ function hackGame() {
 	/**
 	 * Returns a function with the specified name from the class
 	 *
-	 * Возвращает из класса функцию с указанным именем
-	 * @param {Object} classF Class // класс
-	 * @param {String} nameF function name // имя функции
-	 * @param {String} pos name and alias order // порядок имени и псевдонима
+	 * @param {Object} classF Class //
+	 * @param {String} nameF function name //
+	 * @param {String} pos name and alias order //
 	 * @returns
 	 */
 	function getF(classF, nameF, pos) {
@@ -5201,9 +5035,8 @@ function hackGame() {
 	/**
 	 * Returns a function with the specified name from the class
 	 *
-	 * Возвращает из класса функцию с указанным именем
-	 * @param {Object} classF Class // класс
-	 * @param {String} nameF function name // имя функции
+	 * @param {Object} classF Class //
+	 * @param {String} nameF function name //
 	 * @returns
 	 */
 	function getFnP(classF, nameF) {
@@ -5214,9 +5047,8 @@ function hackGame() {
 	/**
 	 * Returns the function name with the specified ordinal from the class
 	 *
-	 * Возвращает имя функции с указаным порядковым номером из класса
-	 * @param {Object} classF Class // класс
-	 * @param {Number} nF Order number of function // порядковый номер функции
+	 * @param {Object} classF Class //
+	 * @param {Number} nF Order number of function //
 	 * @returns
 	 */
 	function getFn(classF, nF) {
@@ -5227,9 +5059,8 @@ function hackGame() {
 	/**
 	 * Returns the name of the function with the specified serial number from the prototype of the class
 	 *
-	 * Возвращает имя функции с указаным порядковым номером из прототипа класса
-	 * @param {Object} classF Class // класс
-	 * @param {Number} nF Order number of function // порядковый номер функции
+	 * @param {Object} classF Class //
+	 * @param {Number} nF Order number of function //
 	 * @returns
 	 */
 	function getProtoFn(classF, nF) {
@@ -5245,7 +5076,6 @@ function hackGame() {
 	/**
 	 * Description of replaced functions
 	 *
-	 * Описание подменяемых функций
 	 */
 	replaceFunction = {
 		company: function () {
@@ -5446,7 +5276,6 @@ function hackGame() {
 		/**
 		 * Acceleration button without Valkyries favor
 		 *
-		 * Кнопка ускорения без Покровительства Валькирий
 		 */
 		battleFastKey: function () {
 			const BGM_45 = getProtoFn(Game.BattleGuiMediator, 45);
@@ -5632,7 +5461,6 @@ function hackGame() {
 	/**
 	 * Starts replacing recorded functions
 	 *
-	 * Запускает замену записанных функций
 	 */
 	this.activateHacks = function () {
 		if (!selfGame) throw Error('Use connectGame');
@@ -5648,13 +5476,11 @@ function hackGame() {
 	/**
 	 * Returns the game object
 	 *
-	 * Возвращает объект игры
 	 */
 	this.getSelfGame = function () {
 		return selfGame;
 	};
 
-	/** Возвращает объект игры */
 	this.getGame = function () {
 		return Game;
 	};
@@ -5662,7 +5488,6 @@ function hackGame() {
 	/**
 	 * Updates game data
 	 *
-	 * Обновляет данные игры
 	 */
 	this.refreshGame = function () {
 		new Game.NextDayUpdatedManager()[getProtoFn(Game.NextDayUpdatedManager, 6)]();
@@ -5674,7 +5499,6 @@ function hackGame() {
 	/**
 	 * Update inventory
 	 *
-	 * Обновляет инвентарь
 	 */
 	this.refreshInventory = async function () {
 		const GM_INST = getFnP(Game.GameModel, 'get_instance');
@@ -5704,11 +5528,9 @@ function hackGame() {
 	/**
 	 * Change the play screen on windowName
 	 *
-	 * Сменить экран игры на windowName
 	 *
 	 * Possible options:
 	 *
-	 * Возможные варианты:
 	 *
 	 * MISSION, ARENA, GRAND, CHEST, SKILLS, SOCIAL_GIFT, CLAN, ENCHANT, TOWER, RATING, CHALLENGE, BOSS, CHAT, CLAN_DUNGEON, CLAN_CHEST, TITAN_GIFT, CLAN_RAID, ASGARD, HERO_ASCENSION, ROLE_ASCENSION, ASCENSION_CHEST, TITAN_MISSION, TITAN_ARENA, TITAN_ARTIFACT, TITAN_ARTIFACT_CHEST, TITAN_VALLEY, TITAN_SPIRITS, TITAN_ARTIFACT_MERCHANT, TITAN_ARENA_HALL_OF_FAME, CLAN_PVP, CLAN_PVP_MERCHANT, CLAN_GLOBAL_PVP, CLAN_GLOBAL_PVP_TITAN, ARTIFACT, ZEPPELIN, ARTIFACT_CHEST, ARTIFACT_MERCHANT, EXPEDITIONS, SUBSCRIPTION, NY2018_GIFTS, NY2018_TREE, NY2018_WELCOME, ADVENTURE, ADVENTURESOLO, SANCTUARY, PET_MERCHANT, PET_LIST, PET_SUMMON, BOSS_RATING_EVENT, BRAWL
 	 */
@@ -5726,13 +5548,12 @@ function hackGame() {
 	/**
 	 * Move to the sanctuary cheats.goSanctuary()
 	 *
-	 * Переместиться в святилище cheats.goSanctuary()
 	 */
 	this.goSanctuary = () => {
 		this.goNavigtor('SANCTUARY');
 	};
 
-	/** Перейти в Долину титанов */
+	/** Opens Titan Valley. */
 	this.goTitanValley = () => {
 		this.goNavigtor('TITAN_VALLEY');
 	};
@@ -5740,7 +5561,6 @@ function hackGame() {
 	/**
 	 * Go to Guild War
 	 *
-	 * Перейти к Войне Гильдий
 	 */
 	this.goClanWar = function () {
 		const GM_0 = getProtoFn(Game.GameModel, 0);
@@ -5750,7 +5570,6 @@ function hackGame() {
 		new clanWarSelect(player).open();
 	};
 
-	/** Перейти к Острову гильдии */
 	this.goClanIsland = function () {
 		const GM_0 = getProtoFn(Game.GameModel, 0);
 		let instance = getFnP(Game.GameModel, 'get_instance');
@@ -5762,7 +5581,6 @@ function hackGame() {
 	/**
 	 * Go to BrawlShop
 	 *
-	 * Переместиться в BrawlShop
 	 */
 	this.goBrawlShop = () => {
 		const GM_0 = getProtoFn(Game.GameModel, 0);
@@ -5781,7 +5599,6 @@ function hackGame() {
 	/**
 	 * Returns all stores from game data
 	 *
-	 * Возвращает все магазины из данных игры
 	 */
 	this.getShops = () => {
 		const GM_0 = getProtoFn(Game.GameModel, 0);
@@ -5797,7 +5614,6 @@ function hackGame() {
 	/**
 	 * Returns the store from the game data by ID
 	 *
-	 * Возвращает магазин из данных игры по идетификатору
 	 */
 	this.getShop = (id) => {
 		const PSDE_4 = getProtoFn(selfGame['game.model.user.shop.PlayerShopDataEntry'], 4);
@@ -5809,7 +5625,6 @@ function hackGame() {
 	/**
 	 * Change island map
 	 *
-	 * Сменить карту острова
 	 */
 	this.changeIslandMap = (mapId = 2) => {
 		const GameInst = getFnP(selfGame['Game'], 'get_instance');
@@ -5827,7 +5642,6 @@ function hackGame() {
 	/**
 	 * Game library availability tracker
 	 *
-	 * Отслеживание доступности игровой библиотеки
 	 */
 	function checkLibLoad() {
 		timeout = setTimeout(() => {
@@ -5842,7 +5656,6 @@ function hackGame() {
 	/**
 	 * Game library data spoofing
 	 *
-	 * Подмена данных игровой библиотеки
 	 */
 	function changeLib() {
 		console.log('lib connect');
@@ -5887,8 +5700,7 @@ function hackGame() {
 	/**
 	 * Returns the value of a language constant
 	 *
-	 * Возвращает значение языковой константы
-	 * @param {*} langConst language constant // языковая константа
+	 * @param {*} langConst language constant //
 	 * @returns
 	 */
 	this.translate = function (langConst) {
@@ -5902,7 +5714,6 @@ function hackGame() {
 /**
  * Auto collection of gifts
  *
- * Автосбор подарков
  */
 function getAutoGifts() {
 	// bmF0cmlidS5vcmc=
@@ -5921,7 +5732,6 @@ function getAutoGifts() {
 	/**
 	 * Submit a request to receive gift codes
 	 *
-	 * Отправка запроса для получения кодов подарков
 	 */
 	giftsAPI
 		.request()
@@ -5974,7 +5784,6 @@ function getAutoGifts() {
 /**
  * To fill the kills in the Forge of Souls
  *
- * Набить килов в горниле душ
  */
 async function bossRatingEvent() {
 	const topGet = await Caller.send({ name: 'topGet', args: { type: 'bossRatingTop', extraId: 0 } });
@@ -6005,7 +5814,6 @@ async function bossRatingEvent() {
 	/**
 	 * First pack
 	 *
-	 * Первая пачка
 	 */
 	const args = {
 		heroes: [],
@@ -6033,7 +5841,6 @@ async function bossRatingEvent() {
 	/**
 	 * Other packs
 	 *
-	 * Другие пачки
 	 */
 	let heroes = [];
 	let count = 1;
@@ -6066,7 +5873,6 @@ async function bossRatingEvent() {
 /**
  * Collecting Rewards from the Forge of Souls
  *
- * Сбор награды из Горнила Душ
  */
 function rewardBossRatingEvent() {
 	let rewardBossRatingCall = '{"calls":[{"name":"offerGetAll","args":{},"ident":"offerGetAll"}]}';
@@ -6118,8 +5924,8 @@ function rewardBossRatingEvent() {
 /**
  * Collect Easter eggs and event rewards
  *
- * Собрать пасхалки и награды событий
  */
+/** Collects all available Easter egg and event rewards. */
 async function offerFarmAllReward() {
 	const offerGetAll = await Caller.send('offerGetAll');
 	const rewards = offerGetAll.filter((e) => e.type == 'reward' && !e?.freeRewardObtained && e.reward);
@@ -6138,7 +5944,6 @@ async function offerFarmAllReward() {
 /**
  * Assemble Outland
  *
- * Собрать запределье
  */
 function getOutland() {
 	return new Promise(function (resolve, reject) {
@@ -6197,7 +6002,6 @@ function getOutland() {
 /**
  * Collect all rewards
  *
- * Собрать все награды
  */
 function questAllFarm() {
 	return new Promise(function (resolve, reject) {
@@ -6245,7 +6049,6 @@ function questAllFarm() {
 /**
  * Mission auto repeat
  *
- * Автоповтор миссии
  * isStopSendMission = false;
  * isSendsMission = true;
  **/
@@ -6270,7 +6073,6 @@ this.sendsMission = async function (param) {
 	/**
 	 * Mission Request
 	 *
-	 * Запрос на выполнение мисии
 	 */
 	let battle;
 	try {
@@ -6334,7 +6136,6 @@ this.sendsMission = async function (param) {
 /**
  * Opening of russian dolls
  *
- * Открытие матрешек
  */
 async function openRussianDolls(libId, amount) {
 	let sum = 0;
@@ -6386,7 +6187,6 @@ function mergeItemsObj(obj1, obj2) {
 /**
  * Collect all mail, except letters with energy and charges of the portal
  *
- * Собрать всю почту, кроме писем с энергией и зарядами портала
  */
 async function mailGetAll() {
 	const { Letters } = HWHClasses;
@@ -6409,14 +6209,12 @@ async function mailGetAll() {
 
 class Letters {
 	/**
-	 * Максимальное оставшееся время для автоматического сбора письма (24 часа)
 	 */
 	static MAX_TIME_LEFT = 24 * 60 * 60 * 1000;
 
 	/**
-	 * Фильтрует получаемые письма
-	 * @param {Array} letters - Массив писем для фильтрации
-	 * @returns {Array} - Массив ID писем, которые нужно собрать
+	 * @param {Array} letters -
+	 * @returns {Array} -
 	 */
 	static filter(letters) {
 		const { Letters } = HWHClasses;
@@ -6435,7 +6233,6 @@ class Letters {
 				continue;
 			}
 
-			// Проверка времени до окончания годности письма
 			const availableUntil = +letter?.availableUntil;
 			if (availableUntil) {
 				const timeLeft = new Date(availableUntil * 1000) - new Date();
@@ -6451,24 +6248,23 @@ class Letters {
 	}
 
 	/**
-	 * Определяет, нужно ли собирать письмо (может быть переопределен в дочерних классах)
-	 * @param {Object} reward - Награда письма
-	 * @returns {boolean} - Нужно ли собирать письмо
+	 * @param {Object} reward -
+	 * @returns {boolean} -
 	 */
 	static shouldCollectLetter(reward) {
 		return !(
-			/** Portals // сферы портала */
+			/** Portals // */
 			(
 				(reward?.refillable ? reward.refillable[45] : false) ||
-				/** Energy // энергия */
+				/** Energy // */
 				(reward?.stamina ? reward.stamina : false) ||
-				/** accelerating energy gain // ускорение набора энергии */
+				/** accelerating energy gain // */
 				(reward?.buff ? true : false) ||
-				/** VIP Points // вип очки */
+				/** VIP Points // */
 				(reward?.vipPoints ? reward.vipPoints : false) ||
-				/** souls of heroes // душы героев */
+				/** souls of heroes // */
 				(reward?.fragmentHero ? true : false) ||
-				/** heroes // герои */
+				/** heroes // */
 				(reward?.bundleHeroReward ? true : false)
 			)
 		);
@@ -6516,7 +6312,6 @@ function setWarTries(value = 0, isChange = false, arePointsMax = false) {
 /**
  * Displaying information about the areas of the portal and attempts on the VG
  *
- * Отображение информации о сферах портала и попытках на ВГ
  */
 async function justInfo() {
 	return new Promise(async (resolve, reject) => {
@@ -6595,11 +6390,7 @@ async function farmStamina(lootBoxId = 148) {
 	const inventory = await Caller.send('inventoryGet');
 	const lootBox = inventory.consumable?.[lootBoxId];
 
-	/** Добавить другие ящики */
 	/**
-	 * 144 - медная шкатулка
-	 * 145 - бронзовая шкатулка
-	 * 148 - платиновая шкатулка
 	 */
 	if (!lootBox) {
 		setProgress(I18N('NO_BOXES'), true);
@@ -6736,7 +6527,7 @@ async function fillActive() {
 		},
 	});
 
-	/** TODO: Вывести потраченые предметы */
+	/** TODO: */
 	console.log(response);
 	setProgress(`${I18N('ACTIVITY_RECEIVED')}: ` + response, true);
 }
@@ -6750,18 +6541,15 @@ async function buyHeroFragments() {
 	for (let shop of shops) {
 		const slots = Object.values(shop.slots);
 		for (const slot of slots) {
-			/* Уже куплено */
 			if (slot.bought) {
 				continue;
 			}
-			/* Не душа героя */
 			if (!('fragmentHero' in slot.reward)) {
 				continue;
 			}
 			const coin = Object.keys(slot.cost).pop();
 			const coinId = Object.keys(slot.cost[coin]).pop();
 			const stock = inv[coin]?.[coinId] || 0;
-			/* Не хватает на покупку */
 			if (slot.cost[coin][coinId] > stock) {
 				continue;
 			}
@@ -6793,7 +6581,6 @@ async function buyHeroFragments() {
 	setProgress(I18N('PURCHASED_HERO_SOULS', { countHeroSouls }), true);
 }
 
-/** Открыть платные сундуки в Запределье за 90 */
 async function bossOpenChestPay() {
 	const [user, bosses, offers, time] = await Caller.send(['userGetInfo', 'bossGetAll', 'specialOffer_getAll', 'getTime']);
 	const boses = bosses.bosses;
@@ -6887,6 +6674,7 @@ async function bossOpenChestPay() {
 	setProgress(`${I18N('OUTLAND_CHESTS_RECEIVED')}: ${count}`, true);
 }
 
+/** Runs the requested number of available Adventure raids. */
 async function autoRaidAdventure(countRaid = 0) {
 	const [userGetInfo, adventure_raidGetInfo] = await Caller.send(['userGetInfo', 'adventure_raidGetInfo']);
 
@@ -6935,7 +6723,6 @@ async function autoRaidAdventure(countRaid = 0) {
 	setProgress(I18N('ADVENTURE_COMPLETED', { adventureId, times: countRaid }), true);
 }
 
-/** Вывести всю клановую статистику в консоль браузера */
 async function clanStatistic() {
 	const [dataClanInfo, dataClanStat, dataClanLog] = await Caller.send(['clanGetInfo', 'clanGetWeeklyStat', 'clanGetLog']);
 
@@ -7111,17 +6898,14 @@ async function rewardsAndMailFarm(isFarmMail = true) {
 				if (!battlePass) {
 					continue;
 				}
-				// Наличие золотого билета
 				if (chain.requirement?.battlePassTicket && !battlePass.ticket) {
 					continue;
 				}
-				// Соответствие требований по уровню
 				if (chain.requirement?.battlePassLevel && battlePass.level < chain.requirement.battlePassLevel) {
 					continue;
 				}
 				const startTime = battlePass.startDate * 1e3;
 				const endTime = battlePass.endDate * 1e3;
-				// Соответствие даты проведения
 				if (startTime > currentTime || endTime < currentTime) {
 					continue;
 				}
@@ -7273,7 +7057,6 @@ function countdownTimer(seconds, message, onClick = null, autoHide = true) {
 
 this.HWHFuncs.countdownTimer = countdownTimer;
 
-/** Набить килов в горниле душк */
 async function bossRatingEventSouls() {
 	const [heroGetAll, offerGetAll, pet_getAll] = await Caller.send(['heroGetAll', 'offerGetAll', 'pet_getAll']);
 	let bossEventInfo = offerGetAll.find((e) => e.offerType == 'bossEvent');
@@ -7322,7 +7105,6 @@ async function bossRatingEventSouls() {
 			heroes: [heroId],
 			pet,
 		};
-		/** Поиск питомца для героя */
 		for (const petId of availablePets) {
 			if (petLib[petId].favorHeroes.includes(heroId)) {
 				args.favor = {
@@ -7357,7 +7139,6 @@ async function bossRatingEventSouls() {
 
 	rewardBossRatingEventSouls(bossEventInfo);
 }
-/** Сбор награды из Горнила Душ */
 async function rewardBossRatingEventSouls(bossEventInfo) {
 	if (!bossEventInfo) {
 		setProgress(I18N('EVENT_IS_OVER'), true);
@@ -7366,7 +7147,7 @@ async function rewardBossRatingEventSouls(bossEventInfo) {
 
 	const farmedChests = bossEventInfo.progress.farmedChests;
 	const score = bossEventInfo.progress.score;
-	// setProgress('Количество убитых врагов: ' + score);
+	// setProgress('
 	const revard = bossEventInfo.reward;
 
 	const caller = new Caller();
@@ -7406,7 +7187,6 @@ async function rewardBossRatingEventSouls(bossEventInfo) {
 /**
  * Spin the Seer
  *
- * Покрутить провидца
  */
 async function rollAscension() {
 	const user = await Caller.send('userGetInfo');
@@ -7422,7 +7202,6 @@ async function rollAscension() {
 /**
  * Collect gifts for the New Year
  *
- * Собрать подарки на новый год
  */
 async function getGiftNewYear() {
 	const response = await Caller.send({ name: 'newYearGiftGet', args: { type: 0 } });
@@ -7583,9 +7362,7 @@ function getQuestionInfo(img, nameOnly = false) {
 			}
 			heroes = libHeroes.filter(h => h.id < 100 && h.artifacts.includes(+id));
 			return {
-				/** Как называется этот артефакт? */
 				name: cheats.translate("LIB_ARTIFACT_NAME_" + id),
-				/** Какому герою принадлежит этот артефакт? */
 				heroes: heroes.map(h => cheats.translate("LIB_HERO_NAME_" + h.id))
 			};
 		case 'hero':
@@ -7594,9 +7371,7 @@ function getQuestionInfo(img, nameOnly = false) {
 			}
 			artifacts = lib.data.hero[id].artifacts;
 			return {
-				/** Как зовут этого героя? */
 				name: cheats.translate("LIB_HERO_NAME_" + id),
-				/** Какой артефакт принадлежит этому герою? */
 				artifact: artifacts.map(a => cheats.translate("LIB_ARTIFACT_NAME_" + a))
 			};
 	}
@@ -7607,11 +7382,9 @@ function hintQuest(quest) {
 	if (quest?.questionIcon) {
 		const info = getQuestionInfo(quest.questionIcon);
 		if (info?.heroes) {
-			/** Какому герою принадлежит этот артефакт? */
 			result.answer = quest.answers.filter(e => info.heroes.includes(e.answerText.slice(1)));
 		}
 		if (info?.artifact) {
-			/** Какой артефакт принадлежит этому герою? */
 			result.answer = quest.answers.filter(e => info.artifact.includes(e.answerText.slice(1)));
 		}
 		if (typeof info == 'string') {
@@ -7728,6 +7501,7 @@ async function sellHeroSoulsForGold() {
 	setProgress(I18N('GOLD_RECEIVED', { gold }), true);
 }
 
+/** Builds, sends, and resolves batches of game API calls. */
 class Caller {
 	static globalHooks = {
 		onError: null,
@@ -7866,15 +7640,11 @@ class Caller {
 this.Caller = Caller;
 
 /*
-// Примеры использования
 (async () => {
-	// Короткий вызов
 	await new Caller('inventoryGet').execute();
-	// Простой вызов
 	let result = await new Caller().add('inventoryGet').execute();
 	console.log('Inventory Get Result:', result);
 
-	// Сложный вызов
 	let caller = new Caller();
 	await caller
 		.add([
@@ -7891,7 +7661,6 @@ this.Caller = Caller;
 	console.log('Inventory Get Result:', caller.result('inventoryGet'));
 	console.log('Hero Get All Result:', caller.result('heroGetAll'));
 
-	// Очистка всех данных
 	caller.clear();
 })();
 */
@@ -7900,7 +7669,6 @@ this.Caller = Caller;
 /**
  * Script for beautiful dialog boxes
  *
- * Скрипт для красивых диалоговых окошек
  */
 const popup = new (function () {
 	this.popUp, this.downer, this.custom, this.middle, this.msgText, (this.buttons = []);
@@ -8098,7 +7866,6 @@ const popup = new (function () {
 		scrollbar-color: #774d10 #05040300;
 	}
 
-		/* === НОВЫЕ КНОПКИ с цветовыми переменными === */
 	.PopUp_btnSocket {
 		margin: 3px 1px;
 		position: relative;
@@ -8131,7 +7898,6 @@ const popup = new (function () {
 		flex: auto;
 		transition: all 0.1s ease;
 
-		/* Цветовые переменные по умолчанию — коричневый */
 		--h: 36;
 		--s: 60%;
 		--l: 10%;
@@ -8200,7 +7966,6 @@ const popup = new (function () {
 		background: hsl(var(--h), 46%, var(--pal));
 	}
 
-	/* === Цветовые переопределения === */
 	.PopUp_btnGap.brown {
 		--pl: 40%;
 		--pcl: 85%;
@@ -8551,12 +8316,11 @@ this.HWHFuncs.popup = popup;
 /**
  * Script control panel
  *
- * Панель управления скриптом
  *
- * Дизайн и стили кнопок
  * Anton Nazarov
  * https://t.me/antiokh
  */
+/** Renders and manages the HeroWarsHelper control menu. */
 class ScriptMenu extends EventEmitterMixin() {
 	constructor() {
 		if (ScriptMenu.instance) {
@@ -8594,7 +8358,6 @@ class ScriptMenu extends EventEmitterMixin() {
 	addStyle() {
 		const style = document.createElement('style');
 		style.innerText = `
-		/* === Статус и переключатель меню === */
 		.scriptMenu_status {
 			position: absolute;
 			z-index: 10001;
@@ -8689,7 +8452,6 @@ class ScriptMenu extends EventEmitterMixin() {
 			left: -300px;
 		}
 
-		/* === Чекбоксы и инпуты === */
 		.scriptMenu_divInput {
 			margin: 2px;
 		}
@@ -8721,7 +8483,6 @@ class ScriptMenu extends EventEmitterMixin() {
 			background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3e%3cpath fill='%2388cb13' d='M6.564.75l-3.59 3.612-1.538-1.55L0 4.26 2.974 7.25 8 2.193z'/%3e%3c/svg%3e");
 		}
 
-		/* === Закрытие меню === */
 		.scriptMenu_close {
 			width: 40px;
 			height: 40px;
@@ -8749,7 +8510,6 @@ class ScriptMenu extends EventEmitterMixin() {
 			background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='%23f4cd73' d='M 0.826 12.559 C 0.431 12.963 3.346 15.374 3.74 14.97 C 4.215 15.173 8.167 10.457 7.804 10.302 C 7.893 10.376 11.454 14.64 11.525 14.372 C 12.134 15.042 15.118 12.086 14.638 11.689 C 14.416 11.21 10.263 7.477 10.402 7.832 C 10.358 7.815 11.731 7.101 14.872 3.114 C 14.698 2.145 13.024 1.074 12.093 1.019 C 11.438 0.861 8.014 5.259 8.035 5.531 C 7.86 5.082 3.61 1.186 3.522 1.59 C 2.973 1.027 0.916 4.611 1.17 4.873 C 0.728 4.914 5.088 7.961 5.61 7.995 C 5.225 7.532 0.622 12.315 0.826 12.559 Z'/%3e%3c/svg%3e")
 		}
 
-		/* === Заголовки и детали === */
 		.scriptMenu_header {
 			text-align: center;
 			align-self: center;
@@ -8786,7 +8546,6 @@ class ScriptMenu extends EventEmitterMixin() {
 			align-self: center;
 		}
 
-		/* === НОВЫЕ КНОПКИ с цветовыми переменными === */
 		.scriptMenu_btnSocket {
 			position: relative;
 			display: flex;
@@ -8817,7 +8576,6 @@ class ScriptMenu extends EventEmitterMixin() {
 			flex: auto;
 			transition: all 0.1s ease;
 
-			/* Цветовые переменные по умолчанию — коричневый */
 			--h: 36;
 			--s: 60%;
 			--l: 10%;
@@ -8885,7 +8643,6 @@ class ScriptMenu extends EventEmitterMixin() {
 			background: hsl(var(--h), 46%, var(--pal));
 		}
 
-		/* === Цветовые переопределения === */
 		.scriptMenu_btnGap.brown {
 			--pl: 40%;
 			--pcl: 85%;
@@ -8955,7 +8712,6 @@ class ScriptMenu extends EventEmitterMixin() {
 			background: hsl(0, 0%, 34%);
 		}
 
-		/* === Индикаторы (оставляем как было) === */
 		.scriptMenu_attention {
 			position: relative;
 		}
@@ -9307,7 +9063,6 @@ this.HWHClasses.ScriptMenu = ScriptMenu;
 //const scriptMenu = ScriptMenu.getInst();
 
 /**
- * Пример использования
 const scriptMenu = ScriptMenu.getInst();
 scriptMenu.init();
 scriptMenu.addHeader('v1.508');
@@ -9341,7 +9096,6 @@ scriptMenu.on('beforeAddDetails', (summaryText, name) => {
 /**
  * Sending expeditions
  *
- * Отправка экспедиций
  */
 function checkExpedition() {
 	const { Expedition } = HWHClasses;
@@ -9364,7 +9118,6 @@ class Expedition {
 
 		/**
 		 * Adding expeditions to collect
-		 * Добавляем экспедиции для сбора
 		 */
 		let countGet = 0;
 		for (var n in expedInfo) {
@@ -9392,14 +9145,12 @@ class Expedition {
 
 		/**
 		 * Putting together a list of heroes
-		 * Собираем список героев
 		 */
 		const heroesArr = [];
 		for (let n in dataHeroes) {
 			const hero = dataHeroes[n];
 			if (hero.power > 0 && !dataExped.useHeroes.includes(hero.id)) {
 				let heroPower = hero.power;
-				// Лара Крофт * 3
 				if (hero.id == 63 && hero.color >= 16) {
 					heroPower *= 3;
 				}
@@ -9409,7 +9160,6 @@ class Expedition {
 
 		/**
 		 * Adding expeditions to send
-		 * Добавляем экспедиции для отправки
 		 */
 		let countSend = 0;
 		heroesArr.sort((a, b) => a.power - b.power);
@@ -9444,7 +9194,6 @@ class Expedition {
 	/**
 	 * Selection of heroes for expeditions
 	 *
-	 * Подбор героев для экспедиций
 	 */
 	selectionHeroes(heroes, power) {
 		const resultHeroers = [];
@@ -9476,7 +9225,6 @@ class Expedition {
 	/**
 	 * Ends expedition script
 	 *
-	 * Завершает скрипт экспедиции
 	 */
 	end(msg) {
 		setProgress(msg, true);
@@ -9489,7 +9237,6 @@ this.HWHClasses.Expedition = Expedition;
 /**
  * Walkthrough of the dungeon
  *
- * Прохождение подземелья
  */
 function testDungeon() {
 	const { executeDungeon } = HWHClasses;
@@ -9503,7 +9250,6 @@ function testDungeon() {
 /**
  * Walkthrough of the dungeon
  *
- * Прохождение подземелья
  */
 function executeDungeon(resolve, reject) {
 	dungeonActivity = 0;
@@ -9562,7 +9308,6 @@ function executeDungeon(resolve, reject) {
 	/**
 	 * Getting data on the dungeon
 	 *
-	 * Получаем данные по подземелью
 	 */
 	function startDungeon(e) {
 		res = e.results;
@@ -9638,7 +9383,6 @@ function executeDungeon(resolve, reject) {
 	/**
 	 * Checking the floor
 	 *
-	 * Проверяем этаж
 	 */
 	async function checkFloor(dungeonInfo) {
 		if (!('floor' in dungeonInfo) || dungeonInfo.floor?.state == 2) {
@@ -9754,7 +9498,6 @@ function executeDungeon(resolve, reject) {
 	/**
 	 * Let's start the fight
 	 *
-	 * Начинаем бой
 	 */
 	function startBattle(teamNum, attackerType) {
 		return new Promise(function (resolve, reject) {
@@ -9781,7 +9524,6 @@ function executeDungeon(resolve, reject) {
 	/**
 	 * Returns the result of the battle in a promise
 	 *
-	 * Возращает резульат боя в промис
 	 */
 	function resultBattle(resultBattles, args) {
 		battleData = resultBattles.results[0].result.response;
@@ -9799,7 +9541,6 @@ function executeDungeon(resolve, reject) {
 	/**
 	 * Finishing the fight
 	 *
-	 * Заканчиваем бой
 	 */
 	async function endBattle(battleInfo) {
 		if (battleInfo.result.win) {
@@ -9829,7 +9570,6 @@ function executeDungeon(resolve, reject) {
 	/**
 	 * Getting and processing battle results
 	 *
-	 * Получаем и обрабатываем результаты боя
 	 */
 	function resultEndBattle(e) {
 		if ('error' in e) {
@@ -9854,7 +9594,6 @@ function executeDungeon(resolve, reject) {
 	 * Returns the coefficient of condition of the
 	 * difference in titanium before and after the battle
 	 *
-	 * Возвращает коэффициент состояния титанов после боя
 	 */
 	function getState(result) {
 		if (!result.result.win) {
@@ -9890,7 +9629,6 @@ function executeDungeon(resolve, reject) {
 	/**
 	 * Converts an object with IDs to an array with IDs
 	 *
-	 * Преобразует объект с идетификаторами в массив с идетификаторами
 	 */
 	function titanObjToArray(obj) {
 		let titans = [];
@@ -9924,7 +9662,6 @@ this.HWHClasses.executeDungeon = executeDungeon;
 /**
  * Passing the tower
  *
- * Прохождение башни
  */
 function testTower() {
 	const { executeTower } = HWHClasses;
@@ -9937,7 +9674,6 @@ function testTower() {
 /**
  * Passing the tower
  *
- * Прохождение башни
  */
 function executeTower(resolve, reject) {
 	lastTowerInfo = {};
@@ -9978,28 +9714,28 @@ function executeTower(resolve, reject) {
 	}
 
 	buffIds = [
-		{id: 0, cost: 0, isBuy: false},   // plug // заглушка
-		{id: 1, cost: 1, isBuy: true},    // 3% attack // 3% атака
-		{id: 2, cost: 6, isBuy: true},    // 2% attack // 2% атака
-		{id: 3, cost: 16, isBuy: true},   // 4% attack // 4% атака
-		{id: 4, cost: 40, isBuy: true},   // 8% attack // 8% атака
-		{id: 5, cost: 1, isBuy: true},    // 10% armor // 10% броня
-		{id: 6, cost: 6, isBuy: true},    // 5% armor // 5% броня
-		{id: 7, cost: 16, isBuy: true},   // 10% armor // 10% броня
-		{id: 8, cost: 40, isBuy: true},   // 20% armor // 20% броня
-		{ id: 9, cost: 1, isBuy: true },    // 10% protection from magic // 10% защита от магии
-		{ id: 10, cost: 6, isBuy: true },   // 5% protection from magic // 5% защита от магии
-		{ id: 11, cost: 16, isBuy: true },  // 10% protection from magic // 10% защита от магии
-		{ id: 12, cost: 40, isBuy: true },  // 20% protection from magic // 20% защита от магии
-		{ id: 13, cost: 1, isBuy: false },  // 40% health hero // 40% здоровья герою
-		{ id: 14, cost: 6, isBuy: false },  // 40% health hero // 40% здоровья герою
-		{ id: 15, cost: 16, isBuy: false }, // 80% health hero // 80% здоровья герою
-		{ id: 16, cost: 40, isBuy: false }, // 40% health to all heroes // 40% здоровья всем героям
-		{ id: 17, cost: 1, isBuy: false },  // 40% energy to the hero // 40% энергии герою
-		{ id: 18, cost: 3, isBuy: false },  // 40% energy to the hero // 40% энергии герою
-		{ id: 19, cost: 8, isBuy: false },  // 80% energy to the hero // 80% энергии герою
-		{ id: 20, cost: 20, isBuy: false }, // 40% energy to all heroes // 40% энергии всем героям
-		{ id: 21, cost: 40, isBuy: false }, // Hero Resurrection // Воскрешение героя
+		{id: 0, cost: 0, isBuy: false},   // plug
+		{id: 1, cost: 1, isBuy: true},    // 3% attack
+		{id: 2, cost: 6, isBuy: true},    // 2% attack
+		{id: 3, cost: 16, isBuy: true},   // 4% attack
+		{id: 4, cost: 40, isBuy: true},   // 8% attack
+		{id: 5, cost: 1, isBuy: true},    // 10% armor
+		{id: 6, cost: 6, isBuy: true},    // 5% armor
+		{id: 7, cost: 16, isBuy: true},   // 10% armor
+		{id: 8, cost: 40, isBuy: true},   // 20% armor
+		{ id: 9, cost: 1, isBuy: true },    // 10% protection from magic
+		{ id: 10, cost: 6, isBuy: true },   // 5% protection from magic
+		{ id: 11, cost: 16, isBuy: true },  // 10% protection from magic
+		{ id: 12, cost: 40, isBuy: true },  // 20% protection from magic
+		{ id: 13, cost: 1, isBuy: false },  // 40% health hero
+		{ id: 14, cost: 6, isBuy: false },  // 40% health hero
+		{ id: 15, cost: 16, isBuy: false }, // 80% health hero
+		{ id: 16, cost: 40, isBuy: false }, // 40% health to all heroes
+		{ id: 17, cost: 1, isBuy: false },  // 40% energy to the hero
+		{ id: 18, cost: 3, isBuy: false },  // 40% energy to the hero
+		{ id: 19, cost: 8, isBuy: false },  // 80% energy to the hero
+		{ id: 20, cost: 20, isBuy: false }, // 40% energy to all heroes
+		{ id: 21, cost: 40, isBuy: false }, // Hero Resurrection
 	]
 
 	this.start = function () {
@@ -10009,7 +9745,6 @@ function executeTower(resolve, reject) {
 	/**
 	 * Getting data on the Tower
 	 *
-	 * Получаем данные по башне
 	 */
 	function startTower(e) {
 		res = e.results;
@@ -10053,7 +9788,6 @@ function executeTower(resolve, reject) {
 	/**
 	 * Check the floor
 	 *
-	 * Проверяем этаж
 	 */
 	function checkFloor(towerInfo) {
 		lastTowerInfo = towerInfo;
@@ -10064,7 +9798,6 @@ function executeTower(resolve, reject) {
 
 		/**
 		 * Is there at least one chest open on the floor
-		 * Открыт ли на этаже хоть один сундук
 		 */
 		isOpenChest = false;
 		if (towerInfo.floorType == "chest") {
@@ -10080,7 +9813,6 @@ function executeTower(resolve, reject) {
 		}
 		/**
 		 * If the chest is open and you can skip floors, then move on
-		 * Если сундук открыт и можно скипать этажи, то переходим дальше
 		 */
 		if (towerInfo.mayFullSkip && +towerInfo.teamLevel == 130) {
 			if (floorNumber == 1) {
@@ -10123,7 +9855,6 @@ function executeTower(resolve, reject) {
 	/**
 	 * Let's start the fight
 	 *
-	 * Начинаем бой
 	 */
 	function startBattle() {
 		return new Promise(function (resolve, reject) {
@@ -10140,7 +9871,6 @@ function executeTower(resolve, reject) {
 	/**
 	 * Returns the result of the battle in a promise
 	 *
-	 * Возращает резульат боя в промис
 	 */
 	function resultBattle(resultBattles, resolve) {
 		battleData = resultBattles.results[0].result.response;
@@ -10152,7 +9882,6 @@ function executeTower(resolve, reject) {
 	/**
 	 * Finishing the fight
 	 *
-	 * Заканчиваем бой
 	 */
 	function endBattle(battleInfo) {
 		if (battleInfo.result.stars >= 3) {
@@ -10175,7 +9904,6 @@ function executeTower(resolve, reject) {
 	/**
 	 * Getting and processing battle results
 	 *
-	 * Получаем и обрабатываем результаты боя
 	 */
 	function resultEndBattle(e) {
 		battleResult = e.results[0].result.response;
@@ -10273,7 +10001,6 @@ function executeTower(resolve, reject) {
 	/**
 	 * Getting tower rewards
 	 *
-	 * Получаем награды башни
 	 */
 	function farmTowerRewards(reason) {
 		let { pointRewards, points } = lastTowerInfo;
@@ -10307,7 +10034,6 @@ function executeTower(resolve, reject) {
 		/**
 		 * Next chest
 		 *
-		 * Следующий сундук
 		 */
 		function nextChest(n) {
 			return {
@@ -10319,7 +10045,6 @@ function executeTower(resolve, reject) {
 		/**
 		 * Open chest
 		 *
-		 * Открыть сундук
 		 */
 		function openChest(n) {
 			return {
@@ -10337,10 +10062,8 @@ function executeTower(resolve, reject) {
 
 		let n = 0;
 		for (let i = 0; i < 15; i++) {
-			// 15 сундуков
 			fullSkipTowerCall.calls.push(nextChest(++n));
 			fullSkipTowerCall.calls.push(openChest(++n));
-			// +5 сундуков, 250 изюма // towerOpenChest
 			// if (i < 5) {
 			// 	fullSkipTowerCall.calls.push(openChest(++n, 2));
 			// }
@@ -10415,7 +10138,6 @@ this.HWHClasses.executeTower = executeTower;
 /**
  * Passage of the arena of the titans
  *
- * Прохождение арены титанов
  */
 function testTitanArena() {
 	const { executeTitanArena } = HWHClasses;
@@ -10428,7 +10150,6 @@ function testTitanArena() {
 /**
  * Passage of the arena of the titans
  *
- * Прохождение арены титанов
  */
 function executeTitanArena(resolve, reject) {
 	let titan_arena = [];
@@ -10436,31 +10157,26 @@ function executeTitanArena(resolve, reject) {
 	/**
 	 * ID of the current batch
 	 *
-	 * Идетификатор текущей пачки
 	 */
 	let currentRival = 0;
 	/**
 	 * Number of attempts to finish off the pack
 	 *
-	 * Количество попыток добития пачки
 	 */
 	let attempts = 0;
 	/**
 	 * Was there an attempt to finish off the current shooting range
 	 *
-	 * Была ли попытка добития текущего тира
 	 */
 	let isCheckCurrentTier = false;
 	/**
 	 * Current shooting range
 	 *
-	 * Текущий тир
 	 */
 	let currTier = 0;
 	/**
 	 * Number of battles on the current dash
 	 *
-	 * Количество битв на текущем тире
 	 */
 	let countRivalsTier = 0;
 
@@ -10513,7 +10229,6 @@ function executeTitanArena(resolve, reject) {
 		}
 		/**
 		 * Checking for the possibility of a raid
-		 * Проверка на возможность рейда
 		 */
 		if (titanArena.canRaid) {
 			titanArenaStartRaid();
@@ -10521,7 +10236,6 @@ function executeTitanArena(resolve, reject) {
 		}
 		/**
 		 * Check was an attempt to achieve the current shooting range
-		 * Проверка была ли попытка добития текущего тира
 		 */
 		if (!isCheckCurrentTier) {
 			checkRivals(titanArena.rivals);
@@ -10533,7 +10247,6 @@ function executeTitanArena(resolve, reject) {
 	/**
 	 * Submit dash information for verification
 	 *
-	 * Отправка информации о тире на проверку
 	 */
 	function checkResultInfo(data) {
 		if (!data?.results) {
@@ -10547,7 +10260,6 @@ function executeTitanArena(resolve, reject) {
 	/**
 	 * Finish the current tier
 	 *
-	 * Завершить текущий тир
 	 */
 	function titanArenaCompleteTier() {
 		isCheckCurrentTier = false;
@@ -10561,7 +10273,6 @@ function executeTitanArena(resolve, reject) {
 	/**
 	 * Gathering points to be completed
 	 *
-	 * Собираем точки которые нужно добить
 	 */
 	function checkRivals(rivals) {
 		finishListBattle = [];
@@ -10577,7 +10288,6 @@ function executeTitanArena(resolve, reject) {
 	/**
 	 * Selecting the next point to finish off
 	 *
-	 * Выбор следующей точки для добития
 	 */
 	function roundRivals() {
 		let countRivals = finishListBattle.length;
@@ -10585,13 +10295,12 @@ function executeTitanArena(resolve, reject) {
 			/**
 			 * Whole range checked
 			 *
-			 * Весь тир проверен
 			 */
 			isCheckCurrentTier = true;
 			titanArenaGetStatus();
 			return;
 		}
-		// setProgress('TitanArena: Уровень ' + currTier + ' Бои: ' + (countRivalsTier - countRivals + 1) + '/' + countRivalsTier);
+		// setProgress('TitanArena:
 		currentRival = finishListBattle.pop();
 		attempts = +currentRival;
 		// console.log('roundRivals', currentRival);
@@ -10600,7 +10309,6 @@ function executeTitanArena(resolve, reject) {
 	/**
 	 * The start of a solo battle
 	 *
-	 * Начало одиночной битвы
 	 */
 	function titanArenaStartBattle(rivalId) {
 		let calls = [{
@@ -10616,13 +10324,11 @@ function executeTitanArena(resolve, reject) {
 	/**
 	 * Calculation of the results of the battle
 	 *
-	 * Расчет результатов боя
 	 */
 	function calcResult(data) {
 		let battlesInfo = data.results[0].result.response.battle;
 		/**
 		 * If attempts are equal to the current battle number we make
-		 * Если попытки равны номеру текущего боя делаем прерасчет
 		 */
 		if (attempts == currentRival) {
 			preCalcBattle(battlesInfo);
@@ -10630,7 +10336,6 @@ function executeTitanArena(resolve, reject) {
 		}
 		/**
 		 * If there are still attempts, we calculate a new battle
-		 * Если попытки еще есть делаем расчет нового боя
 		 */
 		if (attempts > 0) {
 			attempts--;
@@ -10640,20 +10345,17 @@ function executeTitanArena(resolve, reject) {
 		}
 		/**
 		 * Otherwise, go to the next opponent
-		 * Иначе переходим к следующему сопернику
 		 */
 		roundRivals();
 	}
 	/**
 	 * Processing the results of the battle calculation
 	 *
-	 * Обработка результатов расчета битвы
 	 */
 	async function resultCalcBattle(resultBattle) {
 		// console.log('resultCalcBattle', currentRival, attempts, resultBattle.result.win);
 		/**
 		 * If the current calculation of victory is not a chance or the attempt ended with the finish the battle
-		 * Если текущий расчет победа или шансов нет или попытки кончились завершаем бой
 		 */
 		if (resultBattle.result.win || !attempts) {
 			let { progress, result } = resultBattle;
@@ -10678,14 +10380,12 @@ function executeTitanArena(resolve, reject) {
 		}
 		/**
 		 * If not victory and there are attempts we start a new battle
-		 * Если не победа и есть попытки начинаем новый бой
 		 */
 		titanArenaStartBattle(resultBattle.battleData.typeId);
 	}
 	/**
 	 * Returns the promise of calculating the results of the battle
 	 *
-	 * Возращает промис расчета результатов битвы
 	 */
 	function getBattleInfo(battle, isRandSeed) {
 		return new Promise(function (resolve) {
@@ -10700,7 +10400,6 @@ function executeTitanArena(resolve, reject) {
 	/**
 	 * Recalculate battles
 	 *
-	 * Прерасчтет битвы
 	 */
 	function preCalcBattle(battle) {
 		let actions = [getBattleInfo(battle, false)];
@@ -10714,7 +10413,6 @@ function executeTitanArena(resolve, reject) {
 	/**
 	 * Processing the results of the battle recalculation
 	 *
-	 * Обработка результатов прерасчета битвы
 	 */
 	function resultPreCalcBattle(e) {
 		let wins = e.map(n => n.result.win);
@@ -10733,7 +10431,6 @@ function executeTitanArena(resolve, reject) {
 	/**
 	 * Complete an arena battle
 	 *
-	 * Завершить битву на арене
 	 */
 	function titanArenaEndBattle(args) {
 		let calls = [{
@@ -10755,7 +10452,6 @@ function executeTitanArena(resolve, reject) {
 	/**
 	 * Arena State
 	 *
-	 * Состояние арены
 	 */
 	function titanArenaGetStatus() {
 		let calls = [{
@@ -10768,7 +10464,6 @@ function executeTitanArena(resolve, reject) {
 	/**
 	 * Arena Raid Request
 	 *
-	 * Запрос рейда арены
 	 */
 	function titanArenaStartRaid() {
 		let calls = [{
@@ -10819,7 +10514,6 @@ function executeTitanArena(resolve, reject) {
 	/**
 	 * Sending Raid Results
 	 *
-	 * Отправка результатов рейда
 	 */
 	function titanArenaEndRaid(results) {
 		titanArenaEndRaidCall = {
@@ -10874,7 +10568,6 @@ this.HWHClasses.executeTitanArena = executeTitanArena;
 /**
  * Attack of the minions of Asgard
  *
- * Атака прислужников Асгарда
  */
 function testRaidNodes() {
 	const { executeRaidNodes } = HWHClasses;
@@ -10887,7 +10580,6 @@ function testRaidNodes() {
 /**
  * Attack of the minions of Asgard
  *
- * Атака прислужников Асгарда
  */
 function executeRaidNodes(resolve, reject) {
 	let raidData = {
@@ -11051,7 +10743,6 @@ function executeRaidNodes(resolve, reject) {
 	/**
 	 * Returns the battle calculation promise
 	 *
-	 * Возвращает промис расчета боя
 	 */
 	function calcBattleResult(battleData) {
 		return new Promise(function (resolve, reject) {
@@ -11061,7 +10752,6 @@ function executeRaidNodes(resolve, reject) {
 	/**
 	 * Cancels the fight
 	 *
-	 * Отменяет бой
 	 */
 	function cancelEndNodeBattle(r) {
 		const fixBattle = function (heroes) {
@@ -11080,7 +10770,6 @@ function executeRaidNodes(resolve, reject) {
 	/**
 	 * Ends the fight
 	 *
-	 * Завершает бой
 	 */
 	function endNodeBattle(r) {
 		let nodeId = r.battleData.result.nodeId;
@@ -11101,7 +10790,6 @@ function executeRaidNodes(resolve, reject) {
 	/**
 	 * Processing the results of the battle
 	 *
-	 * Обработка результатов боя
 	 */
 	function battleResult(e) {
 		if (e['error']) {
@@ -11127,7 +10815,6 @@ function executeRaidNodes(resolve, reject) {
 	/**
 	 * Completing a task
 	 *
-	 * Завершение задачи
 	 */
 	function endRaidNodes(reason, info) {
 		setIsCancalBattle(true);
@@ -11143,7 +10830,6 @@ this.HWHClasses.executeRaidNodes = executeRaidNodes;
 /**
  * Asgard Boss Attack Replay
  *
- * Повтор атаки босса Асгарда
  */
 function testBossBattle() {
 	const { executeBossBattle } = HWHClasses;
@@ -11156,7 +10842,6 @@ function testBossBattle() {
 /**
  * Asgard Boss Attack Replay
  *
- * Повтор атаки босса Асгарда
  */
 function executeBossBattle(resolve, reject) {
 
@@ -11216,7 +10901,6 @@ function executeBossBattle(resolve, reject) {
 	/**
 	 * Completing a task
 	 *
-	 * Завершение задачи
 	 */
 	function endBossBattle(reason, info) {
 		console.log(reason, info);
@@ -11226,6 +10910,7 @@ function executeBossBattle(resolve, reject) {
 
 this.HWHClasses.executeBossBattle = executeBossBattle;
 
+/** Replays battles with adjusted timings to search for a desired outcome. */
 class FixBattle {
 	minTimer = 1.3;
 	maxTimer = 15.3;
@@ -11381,6 +11066,7 @@ class FixBattle {
 
 this.HWHClasses.FixBattle = FixBattle;
 
+/** Battle fixer variant that stops after finding a winning result. */
 class WinFixBattle extends FixBattle {
 	checkResult() {
 		if (this.lastBattleResult.win) {
@@ -11487,6 +11173,7 @@ class BestOrWinFixBattle extends WinFixBattle {
 
 this.HWHClasses.BestOrWinFixBattle = BestOrWinFixBattle;
 
+/** Battle fixer specialized for boss encounters. */
 class BossFixBattle extends FixBattle {
 	showResult() {
 		super.showResult();
@@ -11502,6 +11189,7 @@ class BossFixBattle extends FixBattle {
 
 this.HWHClasses.BossFixBattle = BossFixBattle;
 
+/** Battle fixer specialized for dungeon encounters. */
 class DungeonFixBattle extends FixBattle {
 	init() {
 		super.init();
@@ -11587,7 +11275,6 @@ const masterWsMixin = {
 		socket.onopen = () => {
 			console.log('Connected to server');
 
-			// Пример создания новой задачи
 			const newTask = {
 				type: 'newTask',
 				battle: this.battle,
@@ -11791,7 +11478,6 @@ this.HWHClasses.slaveWinFixBattle = slaveWinFixBattle;
 /**
  * Auto-repeat attack
  *
- * Автоповтор атаки
  */
 function testAutoBattle() {
 	const { executeAutoBattle } = HWHClasses;
@@ -11804,7 +11490,6 @@ function testAutoBattle() {
 /**
  * Auto-repeat attack
  *
- * Автоповтор атаки
  */
 function executeAutoBattle(resolve, reject) {
 	let battleArg = {};
@@ -11830,7 +11515,6 @@ function executeAutoBattle(resolve, reject) {
 	/**
 	 * Returns a promise for combat recalculation
 	 *
-	 * Возвращает промис для прерасчета боя
 	 */
 	function getBattleInfo(battle) {
 		return new Promise(function (resolve) {
@@ -11844,7 +11528,6 @@ function executeAutoBattle(resolve, reject) {
 	/**
 	 * Battle recalculation
 	 *
-	 * Прерасчет боя
 	 */
 	function preCalcBattle(battle) {
 		let actions = [];
@@ -11858,7 +11541,6 @@ function executeAutoBattle(resolve, reject) {
 	/**
 	 * Processing the results of the battle recalculation
 	 *
-	 * Обработка результатов прерасчета боя
 	 */
 	async function resultPreCalcBattle(results) {
 		let countWin = results.reduce((s, w) => w.result.win + s, 0);
@@ -11924,7 +11606,6 @@ function executeAutoBattle(resolve, reject) {
 	/**
 	 * Calculation of the combat result coefficient
 	 *
-	 * Расчет коэфициента результата боя
 	 */
 	function calcCoeff(result, packType) {
 		let beforeSumFactor = 0;
@@ -11957,7 +11638,6 @@ function executeAutoBattle(resolve, reject) {
 	/**
 	 * Start battle
 	 *
-	 * Начало боя
 	 */
 	function startBattle() {
 		countBattle++;
@@ -11982,7 +11662,6 @@ function executeAutoBattle(resolve, reject) {
 	/**
 	 * Battle calculation
 	 *
-	 * Расчет боя
 	 */
 	async function calcResultBattle(e) {
 		if (!e) {
@@ -12026,7 +11705,6 @@ function executeAutoBattle(resolve, reject) {
 	/**
 	 * Processing the results of the battle
 	 *
-	 * Обработка результатов боя
 	 */
 	async function resultBattle(e) {
 		const isWin = e.result.win;
@@ -12103,7 +11781,6 @@ function executeAutoBattle(resolve, reject) {
 	/**
 	 * Cancel fight
 	 *
-	 * Отмена боя
 	 */
 	function cancelEndBattle(r) {
 		const fixBattle = function (heroes) {
@@ -12122,7 +11799,6 @@ function executeAutoBattle(resolve, reject) {
 	/**
 	 * End of the fight
 	 *
-	 * Завершение боя */
 	function endBattle(battleResult, isCancal) {
 		let calls = [{
 			name: nameFuncEndBattle,
@@ -12198,7 +11874,6 @@ function executeAutoBattle(resolve, reject) {
 	/**
 	 * Completing a task
 	 *
-	 * Завершение задачи
 	 */
 	function endAutoBattle(reason, info) {
 		setIsCancalBattle(true);
@@ -12221,8 +11896,8 @@ function testDailyQuests() {
 /**
  * Automatic completion of daily quests
  *
- * Автоматическое выполнение ежедневных квестов
  */
+/** Automates daily quest eligibility checks and completion actions. */
 class dailyQuests {
 	/**
 	 * Caller.send('userGetInfo').then(e => console.log(e));
@@ -12275,7 +11950,6 @@ class dailyQuests {
 				const vipLevel = Math.max(
 					...lib.data.level.vip.filter((l) => l.vipPoints <= +this.questInfo.userGetInfo.vipPoints).map((l) => l.level)
 				);
-				// Возвращаем массив команд для рейда
 				if (vipLevel >= 5 || goldTicket) {
 					return [{ name: 'missionRaid', args: { id: selectedMissionId, times: 3 }, ident: 'missionRaid_1' }];
 				} else {
@@ -12345,7 +12019,7 @@ class dailyQuests {
 			isWeCanDo: () => false,
 		},
 		10020: {
-			description: 'Открой 3 сундука в Запределье', // Готово
+			description: 'Открой 3 сундука в Запределье',
 			doItCall: () => {
 				return this.getOutlandChest();
 			},
@@ -12364,7 +12038,7 @@ class dailyQuests {
 			isWeCanDo: () => false,
 		},
 		10023: {
-			description: 'Прокачай Дар Стихий на 1 уровень', // Готово
+			description: 'Прокачай Дар Стихий на 1 уровень',
 			doItCall: () => {
 				const heroId = this.getHeroIdTitanGift();
 				return [
@@ -12378,7 +12052,7 @@ class dailyQuests {
 			},
 		},
 		10024: {
-			description: 'Повысь уровень любого артефакта один раз', // Готово
+			description: 'Повысь уровень любого артефакта один раз',
 			doItCall: () => {
 				const upArtifact = this.getUpgradeArtifact();
 				return [
@@ -12413,7 +12087,7 @@ class dailyQuests {
 			isWeCanDo: () => false,
 		},
 		10028: {
-			description: 'Повысь уровень любого артефакта титанов', // Готово
+			description: 'Повысь уровень любого артефакта титанов',
 			doItCall: () => {
 				const upTitanArtifact = this.getUpgradeTitanArtifact();
 				return [
@@ -12440,7 +12114,7 @@ class dailyQuests {
 			},
 		},
 		10030: {
-			description: 'Улучши облик любого героя 1 раз', // Готово
+			description: 'Улучши облик любого героя 1 раз',
 			doItCall: () => {
 				const upSkin = this.getUpgradeSkin();
 				return [
@@ -12478,13 +12152,13 @@ class dailyQuests {
 		10046: {
 			/**
 			 * TODO: Watch Adventure
-			 * TODO: Смотреть приключение
+			 * TODO:
 			 */
 			description: 'Открой 3 сундука в Приключениях',
 			isWeCanDo: () => false,
 		},
 		10047: {
-			description: 'Набери 150 очков активности в Гильдии', // Готово
+			description: 'Набери 150 очков активности в Гильдии',
 			doItCall: () => {
 				const enchantRune = this.getEnchantRune();
 				return [
@@ -12636,10 +12310,10 @@ class dailyQuests {
 		];
 		const skillLib = lib.getData('skill');
 		/**
-		 * color - 1 (белый) открывает 1 навык
-		 * color - 2 (зеленый) открывает 2 навык
-		 * color - 4 (синий) открывает 3 навык
-		 * color - 7 (фиолетовый) открывает 4 навык
+		 * color - 1 (
+		 * color - 2 (
+		 * color - 4 (
+		 * color - 7 (
 		 */
 		const colors = [1, 2, 4, 7];
 		for (const hero of heroes) {
@@ -12681,17 +12355,14 @@ class dailyQuests {
 
 			for (let slotId in hero.artifacts) {
 				const art = hero.artifacts[slotId];
-				/* Текущая звезданость арта */
 				const star = art.star;
 				if (!star) {
 					continue;
 				}
-				/* Текущий уровень арта */
 				const level = art.level;
 				if (level >= 100) {
 					continue;
 				}
-				/* Идентификатор арта в библиотеке */
 				const artifactId = heroInfo.artifacts[slotId];
 				const artInfo = artifactLib.id[artifactId];
 				const costNextLevel = artifactLib.type[artInfo.type].levels[level + 1].cost;
@@ -12701,7 +12372,7 @@ class dailyQuests {
 				const costId = costValues[0];
 				const costValue = +costValues[1];
 
-				/** TODO: Возможно стоит искать самый высокий уровень который можно качнуть? */
+				/** TODO: */
 				if (level < upArt.level && inventory[costCurrency][costId] >= costValue) {
 					upArt.level = level;
 					upArt.heroId = hero.id;
@@ -12729,12 +12400,10 @@ class dailyQuests {
 			}
 
 			for (let skinId in hero.skins) {
-				/* Текущий уровень скина */
 				const level = hero.skins[skinId];
 				if (level >= 60) {
 					continue;
 				}
-				/* Идентификатор скина в библиотеке */
 				const skinInfo = skinLib[skinId];
 				if (!skinInfo.statData.levels?.[level + 1]) {
 					continue;
@@ -12745,7 +12414,7 @@ class dailyQuests {
 				const costCurrencyId = Object.keys(costNextLevel[costCurrency]).pop();
 				const costValue = +costNextLevel[costCurrency][costCurrencyId];
 
-				/** TODO: Возможно стоит искать самый высокий уровень который можно качнуть? */
+				/** TODO: */
 				if (level < upSkin.level && costValue < upSkin.cost && inventory[costCurrency][costCurrencyId] >= costValue) {
 					upSkin.cost = costValue;
 					upSkin.level = level;
@@ -12777,17 +12446,14 @@ class dailyQuests {
 
 			for (let slotId in titan.artifacts) {
 				const art = titan.artifacts[slotId];
-				/* Текущая звезданость арта */
 				const star = art.star;
 				if (!star) {
 					continue;
 				}
-				/* Текущий уровень арта */
 				const level = art.level;
 				if (level >= 120) {
 					continue;
 				}
-				/* Идентификатор арта в библиотеке */
 				const artifactId = titanInfo.artifacts[slotId];
 				const artInfo = artTitanLib.id[artifactId];
 				const costNextLevel = artTitanLib.type[artInfo.type].levels[level + 1].cost;
@@ -12805,7 +12471,7 @@ class dailyQuests {
 					currentValue = inventory[costCurrency][costId];
 				}
 
-				/** TODO: Возможно стоит искать самый высокий уровень который можно качнуть? */
+				/** TODO: */
 				if (level < upArt.level && currentValue >= costValue) {
 					upArt.level = level;
 					upArt.titanId = titan.id;
@@ -12832,22 +12498,20 @@ class dailyQuests {
 		const runeLib = lib.getData('rune');
 		const runeLvls = Object.values(runeLib.level);
 		/**
-		 * color - 4 (синий) открывает 1 и 2 символ
-		 * color - 7 (фиолетовый) открывает 3 символ
-		 * color - 8 (фиолетовый +1) открывает 4 символ
-		 * color - 9 (фиолетовый +2) открывает 5 символ
+		 * color - 4 (
+		 * color - 7 (
+		 * color - 8 (
+		 * color - 9 (
 		 */
-		// TODO: кажется надо учесть уровень команды
+		// TODO:
 		const colors = [4, 4, 7, 8, 9];
 		for (const hero of heroes) {
 			const color = hero.color;
 
 			for (let runeTier in hero.runes) {
-				/* Проверка на доступность руны */
 				if (color < colors[runeTier]) {
 					continue;
 				}
-				/* Текущий опыт руны */
 				const exp = hero.runes[runeTier];
 				if (exp >= 43750) {
 					continue;
@@ -12863,13 +12527,12 @@ class dailyQuests {
 						}
 					}
 				}
-				/** Уровень героя необходимый для уровня руны */
 				const heroLevel = runeLib.level[level].heroLevel;
 				if (hero.level < heroLevel) {
 					continue;
 				}
 
-				/** TODO: Возможно стоит искать самый высокий уровень который можно качнуть? */
+				/** TODO: */
 				if (exp < enchRune.exp) {
 					enchRune.exp = exp;
 					enchRune.heroId = hero.id;
@@ -12924,7 +12587,6 @@ class dailyQuests {
 		const heroes = Object.values(this.questInfo['heroGetAll']);
 		const inventory = this.questInfo['inventoryGet'];
 		const expHero = { heroId: 0, exp: 3625195, libId: 0 };
-		/** зелья опыта (consumable 9, 10, 11, 12) */
 		for (let i = 9; i <= 12; i++) {
 			if (inventory.consumable[i]) {
 				expHero.libId = i;
@@ -12946,7 +12608,6 @@ class dailyQuests {
 		const inventory = this.questInfo['inventoryGet'];
 		const user = this.questInfo['userGetInfo'];
 		const titanGiftLib = lib.getData('titanGift');
-		/** Искры */
 		const titanGift = inventory.consumable[24];
 		let heroId = 0;
 		let minLevel = 30;
@@ -12975,21 +12636,17 @@ class dailyQuests {
 	}
 
 	getHeroicMissionId() {
-		// Получаем доступные миссии с 3 звездами
 		const availableMissionsToRaid = Object.values(this.questInfo.missionGetAll)
 			.filter((mission) => mission.stars === 3)
 			.map((mission) => mission.id);
 
-		// Получаем героев для улучшения, у которых меньше 6 звезд
 		const heroesToUpgrade = Object.values(this.questInfo.heroGetAll)
 			.filter((hero) => hero.star < 6)
 			.sort((a, b) => b.power - a.power)
 			.map((hero) => hero.id);
 
-		// Получаем героические миссии, которые доступны для рейдов
 		const heroicMissions = Object.values(lib.data.mission).filter((mission) => mission.isHeroic && availableMissionsToRaid.includes(mission.id));
 
-		// Собираем дропы из героических миссий
 		const drops = heroicMissions.map((mission) => {
 			const lastWave = mission.normalMode.waves[mission.normalMode.waves.length - 1];
 			const allRewards = lastWave.enemies[lastWave.enemies.length - 1].drop.map((drop) => drop.reward);
@@ -12999,10 +12656,8 @@ class dailyQuests {
 			return { id: mission.id, heroId };
 		});
 
-		// Определяем, какие дропы подходят для героев, которых нужно улучшить
 		const heroDrops = heroesToUpgrade.map((heroId) => drops.find((drop) => drop.heroId == heroId)).filter((drop) => drop);
 		const firstMission = heroDrops[0];
-		// Выбираем миссию для рейда
 		const selectedMissionId = firstMission ? firstMission.id : 1;
 
 		const stamina = this.questInfo.userGetInfo.refillable.find((x) => x.id == 1).amount;
@@ -13034,8 +12689,8 @@ function testDoYourBest() {
 /**
  * Do everything button
  *
- * Кнопка сделать все
  */
+/** Runs the selected set of routine automation tasks. */
 class doYourBest {
 	funcList = [
 		{
@@ -13238,7 +12893,6 @@ this.HWHClasses.doYourBest = doYourBest;
 /**
  * Passing the adventure along the specified route
  *
- * Прохождение приключения по указанному маршруту
  */
 function testAdventure(type) {
 	const { executeAdventure } = HWHClasses;
@@ -13251,8 +12905,8 @@ function testAdventure(type) {
 /**
  * Passing the adventure along the specified route
  *
- * Прохождение приключения по указанному маршруту
  */
+/** Navigates and completes an Adventure along a configured route. */
 class executeAdventure {
 
 	type = 'default';
@@ -13472,7 +13126,6 @@ class executeAdventure {
 				/**
 				 * Disable regular battle cancellation
 				 *
-				 * Отключаем штатную отменую боя
 				 */
 				setIsCancalBattle(false);
 				if (await this.battle(toPath)) {
@@ -13508,7 +13161,6 @@ class executeAdventure {
 	/**
 	 * Carrying out a fight
 	 *
-	 * Проведение боя
 	 */
 	async battle(path, preCalc = true) {
 		const data = await this.startBattle(path);
@@ -13570,7 +13222,6 @@ class executeAdventure {
 	/**
 	 * Recalculate battles
 	 *
-	 * Прерасчтет битвы
 	 */
 	async preCalcBattle(battle) {
 		const countTestBattle = getInput('countTestBattle');
@@ -13589,7 +13240,6 @@ class executeAdventure {
 	/**
 	 * Starts a fight
 	 *
-	 * Начинает бой
 	 */
 	startBattle(path) {
 		this.args.path = path;
@@ -13617,7 +13267,6 @@ class executeAdventure {
 	/**
 	 * Ends the fight
 	 *
-	 * Заканчивает бой
 	 */
 	endBattle(battle) {
 		this.callEndBattle.name = this.actions[this.type].endBattle;
@@ -13630,7 +13279,6 @@ class executeAdventure {
 	/**
 	 * Checks if you can get a buff
 	 *
-	 * Проверяет можно ли получить баф
 	 */
 	checkBuff(nodeInfo) {
 		let id = null;
@@ -13649,7 +13297,6 @@ class executeAdventure {
 	/**
 	 * Collects a buff
 	 *
-	 * Собирает баф
 	 */
 	async collectBuff(buff, path) {
 		this.callCollectBuff.name = this.actions[this.type].collectBuff;
@@ -13691,7 +13338,6 @@ this.HWHClasses.executeAdventure = executeAdventure;
 /**
  * Passage of brawls
  *
- * Прохождение потасовок
  */
 function testBrawls(isAuto) {
 	const { executeBrawls } = HWHClasses;
@@ -13703,7 +13349,6 @@ function testBrawls(isAuto) {
 /**
  * Passage of brawls
  *
- * Прохождение потасовок
  */
 class executeBrawls {
 
@@ -13808,7 +13453,6 @@ class executeBrawls {
 				this.end(I18N('SUCCESS'));
 				return;
 				/*
-				// "Ежедневное задание выполнено, продолжить атаку?"
 				if (
 					await popup.confirm(I18N('BRAWL_DAILY_TASK_COMPLETED'), [
 						{ msg: I18N('BTN_NO'), result: true },
@@ -13830,7 +13474,6 @@ class executeBrawls {
 
 			const enemie = Object.values(this.brawlInfo.findEnemies).shift();
 
-			// Автоматический подбор пачки
 			if (this.isAuto) {
 				if (this.mandatoryId < 4000 && this.mandatoryId != 13) {
 					this.end(I18N('BRAWL_AUTO_PACK_NOT_CUR_HERO'));
@@ -14550,7 +14193,6 @@ class executeBrawls {
 	/**
 	 * Carrying out a fight
 	 *
-	 * Проведение боя
 	 */
 	async battle(userId) {
 		this.stats.count++;
@@ -14572,7 +14214,6 @@ class executeBrawls {
 	/**
 	 * Starts a fight
 	 *
-	 * Начинает бой
 	 */
 	async startBattle(userId, args) {
 		const call = {
@@ -14604,7 +14245,6 @@ class executeBrawls {
 	/**
 	 * Ends the fight
 	 *
-	 * Заканчивает бой
 	 */
 	async endBattle(battle) {
 		battle.progress[0].attackers.input = ['auto', 0, 0, 'auto', 0, 0];
@@ -14637,9 +14277,8 @@ this.HWHClasses.executeBrawls = executeBrawls;
 
 /**
  * Runs missions from the company on a specified list
- * Выполняет миссии из компании по списку
  * @param {Array} missions [{id: 25, times: 3}, {id: 45, times: 30}]
- * @param {Boolean} isRaids выполнять миссии рейдом
+ * @param {Boolean} isRaids
  * @returns
  */
 function testCompany(missions, isRaids = false) {
@@ -14652,7 +14291,6 @@ function testCompany(missions, isRaids = false) {
 
 /**
  * Fulfilling company missions
- * Выполнение миссий компании
  */
 class ExecuteCompany {
 	constructor(resolve, reject) {
@@ -15274,8 +14912,6 @@ class ZingerYWebsiteAPI {
 		}
 	}
 	/**
-	 * Класс для взаимодействия с API сайта zingery.ru
-	 * Предназначен только для использования со скриптом HeroWarsHelper:
 	 * https://greasyfork.org/ru/scripts/450693-herowarshelper
 	 * Copyright ZingerY
 	 */
@@ -15285,8 +14921,4 @@ class ZingerYWebsiteAPI {
 
 /**
  * TODO:
- * Закрытие окошек по Esc +-
- * Починить работу скрипта на уровне команды ниже 10 +-
- * Написать номальную синхронизацию
- * Добавить открытие люков за изюм
  */
