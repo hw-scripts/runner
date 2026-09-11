@@ -3,7 +3,7 @@
 // @name:en			HeroWarsHelper
 // @name:ru			HeroWarsHelper
 // @namespace		HeroWarsHelper
-// @version			2.459
+// @version			2.458
 // @description		Automation of actions for the game Hero Wars
 // @description:en	Automation of actions for the game Hero Wars
 // @description:ru	Автоматизация действий для игры Хроники Хаоса
@@ -16,6 +16,8 @@
 // @match			https://www.hero-wars.cn/*
 // @match			https://apps-1701433570146040.apps.fbsbx.com/*
 // @run-at			document-start
+// @grant			GM_xmlhttpRequest
+// @connect			tools.oaslo.com
 // @downloadURL https://update.greasyfork.org/scripts/450693/HeroWarsHelper.user.js
 // @updateURL https://update.greasyfork.org/scripts/450693/HeroWarsHelper.meta.js
 // ==/UserScript==
@@ -54,6 +56,7 @@ let isLoadGame = false;
  * Заголовки последнего запроса
  */
 let lastHeaders = {};
+let oasloHeaders = {};
 /**
  * Information about sent gifts
  *
@@ -92,6 +95,110 @@ function getUserInfo() {
 	return userInfo;
 }
 
+async function getOasloGameData() {
+	const entries = Object.entries(oasloHeaders).filter(([headerName, value]) => headerName.startsWith('x-') && value);
+	const findHeader = (name, predicate = () => true) =>
+		entries.find(([headerName, value]) => headerName.includes(name) && predicate(value))?.[1];
+	const knownHeader = (headerName) => ['user', 'player', 'uuid', 'unique'].some((name) => headerName.includes(name));
+	const findUnidentifiedHeader = (predicate) =>
+		entries.find(([headerName, value]) => !knownHeader(headerName) && predicate(value))?.[1];
+	const gameData = {
+		user: findHeader('user'),
+		player: findHeader('player', (value) => value.length > 4),
+		uuid: findHeader('uuid'),
+		unique: findHeader('unique'),
+		progress:
+			findHeader('progress', (value) => value.length > 80) ||
+			findUnidentifiedHeader((value) => value.length > 80),
+		sync:
+				findHeader('sync', (value) => /^[a-zA-Z0-9]+$/.test(value)) ||
+				entries.find(
+					([headerName, value]) => !knownHeader(headerName) && headerName.length === 17 && /^[a-zA-Z0-9]+$/.test(value)
+				)?.[1],
+	};
+	const missingHeaders = Object.entries(gameData)
+		.filter(([, value]) => !value)
+		.map(([name]) => name);
+	if (missingHeaders.length) {
+		throw new Error(`Не найдены игровые заголовки: ${missingHeaders.join(', ')}`);
+	}
+
+	let serverId;
+	for (const request of Object.values(requestHistory).reverse()) {
+		try {
+			const response = JSON.parse(request.response);
+			serverId = response.results?.map((call) => call.result?.response?.serverId).find(Boolean);
+			if (serverId) break;
+		} catch (e) {}
+	}
+	if (!serverId) {
+		throw new Error('Не найден serverId игры');
+	}
+
+	const heroes = await Caller.send('heroGetAll');
+	const heroSkills = Object.entries(heroes)
+		.sort(([, first], [, second]) => (second.power || 0) - (first.power || 0))
+		.reduce((result, [heroId, hero]) => {
+			const skills = Object.values(hero.skills || {});
+			let skillsToUpgrade = hero.color >= 7 ? 4 : hero.color >= 4 ? 3 : hero.color >= 2 ? 2 : 1;
+			const selectedSkills = [];
+			let needsUpgrade = false;
+			for (const skill of skills) {
+				selectedSkills.push(skill);
+				if (skill < hero.level) needsUpgrade = true;
+				if (--skillsToUpgrade < 1) break;
+			}
+			if (needsUpgrade) result.push({ id: heroId, level: hero.level, skills: selectedSkills });
+			return result;
+		}, []);
+
+	return {
+		serverId,
+		...gameData,
+		heroSkills,
+		LoginUTC: Math.floor(Date.now() / 1000),
+	};
+}
+
+function sendOasloPresence(gameData) {
+	return new Promise((resolve, reject) => {
+		GM_xmlhttpRequest({
+			method: 'POST',
+			url: 'https://tools.oaslo.com/app/presence',
+			headers: { 'Content-Type': 'application/json' },
+			data: JSON.stringify({ playerId: gameData.player, ts: gameData.LoginUTC }),
+			onload: (response) => (response.status.toString().startsWith('2') ? resolve() : reject(new Error(`HTTP ${response.status}`))),
+			onerror: () => reject(new Error('Не удалось отправить данные присутствия oaslo')),
+		});
+	});
+}
+
+function openOasloSetup(gameData) {
+	return new Promise((resolve, reject) => {
+		GM_xmlhttpRequest({
+			method: 'POST',
+			url: 'https://tools.oaslo.com/app/init',
+			headers: { 'Content-Type': 'application/json' },
+			data: JSON.stringify(gameData),
+			onload: (response) => {
+				try {
+					const result = JSON.parse(response.responseText);
+					if (!response.status.toString().startsWith('2') || result.error || !result.lang) {
+						throw new Error(result.error || `HTTP ${response.status}`);
+					}
+					window.open(`https://tools.oaslo.com/${result.lang}/app/setup`, '_blank', 'noopener');
+					window.postMessage({ type: 'closeOasloGame' }, '*');
+					setTimeout(() => window.close(), 100);
+					resolve(result);
+				} catch (error) {
+					reject(error);
+				}
+			},
+			onerror: () => reject(new Error('Не удалось подключиться к oaslo.com')),
+		});
+	});
+}
+
 /**
  * Original methods for working with AJAX
  *
@@ -127,7 +234,7 @@ this.fetch = function (url, options) {
 		}
 		/**
 		 * Mock response for blocked URL
-		 * 
+		 *
 		 * Мокаем ответ для заблокированного URL
 		 */
 		const mockResponse = new Response('Custom blocked response', {
@@ -273,6 +380,8 @@ const i18nLangData = {
 		EXPEDITIONS_TITLE: 'Sending and collecting expeditions',
 		SYNC: 'Sync',
 		SYNC_TITLE: 'Partial synchronization of game data without reloading the page',
+		OASLO_TOOL: 'Launch sleep upgrade',
+		OASLO_TOOL_TITLE: 'Open Hero Wars oaslo Tool in the current browser session',
 		ARCHDEMON: 'Archdemon',
 		ARCHDEMON_TITLE: 'Hitting kills and collecting rewards',
 		ESTER_EGGS: 'Easter eggs',
@@ -677,6 +786,8 @@ const i18nLangData = {
 		EXPEDITIONS_TITLE: 'Отправка и сбор экспедиций',
 		SYNC: 'Синхронизация',
 		SYNC_TITLE: 'Частичная синхронизация данных игры без перезагрузки сатраницы',
+		OASLO_TOOL: 'Апгрейд героев во сне',
+		OASLO_TOOL_TITLE: 'Открыть Hero Wars oaslo Tool в текущей сессии браузера',
 		ARCHDEMON: 'Архидемон',
 		ARCHDEMON_TITLE: 'Набивает килы и собирает награду',
 		ESTER_EGGS: 'Пасхалки',
@@ -1263,10 +1374,10 @@ function getInput(inputName) {
 	return inputs[inputName]?.input?.value;
 }
 
-/** 
+/**
  * Control FPS
- * 
- * Контроль FPS 
+ *
+ * Контроль FPS
  */
 let nextAnimationFrame = Date.now();
 const oldRequestAnimationFrame = this.requestAnimationFrame;
@@ -1459,6 +1570,24 @@ const buttons = {
 			confShow(`${I18N('RUN_SCRIPT')} ${I18N('SYNC')}?`, cheats.refreshGame);
 		},
 	},
+	oasloTool: {
+		get name() {
+			return I18N('OASLO_TOOL');
+		},
+		get title() {
+			return I18N('OASLO_TOOL_TITLE');
+		},
+		onClick: async function () {
+			try {
+				const gameData = await getOasloGameData();
+				await sendOasloPresence(gameData);
+				await openOasloSetup(gameData);
+			} catch (error) {
+				console.error('oaslo setup error:', error);
+				popup.confirm(`Не удалось запустить сонный апгрейд:<br>${error.message}`);
+			}
+		},
+	},
 	// Архидемон
 	bossRatingEventDemon: {
 		get name() {
@@ -1531,9 +1660,9 @@ const buttons = {
 				const url = URL.createObjectURL(blob);
 				popup.custom.insertAdjacentHTML(
 					'beforeend',
-					`<iframe src="${url}" 
-							width="500px" 
-							height="500px" 
+					`<iframe src="${url}"
+							width="500px"
+							height="500px"
 							frameborder="0">
 					</iframe>`
 				);
@@ -1940,7 +2069,7 @@ let isSendsMission = false;
 let lastMissionStart = {}
 /**
  * Start time of the last battle in the company
- * 
+ *
  * Время начала последнего боя в кампании
  */
 let lastMissionBattleStart = 0;
@@ -2069,26 +2198,26 @@ let correctShowOpenArtifact = 0;
 /**
  * Data for the last battle in the dungeon
  * (Fix endless cards)
- * 
+ *
  * Данные для последнего боя в подземке
  * (Исправление бесконечных карт)
  */
 let lastDungeonBattleData = null;
 /**
  * Start time of the last battle in the dungeon
- * 
+ *
  * Время начала последнего боя в подземелье
  */
 let lastDungeonBattleStart = 0;
 /**
  * Subscription end time
- * 
+ *
  * Время окончания подписки
  */
 let subEndTime = 0;
-/** 
+/**
  * Number of prediction cards
- * 
+ *
  * Количество карт предсказаний
  */
 const countPredictionCard = 0;
@@ -2096,7 +2225,7 @@ const countPredictionCard = 0;
 /**
  * Brawl pack
  *
- * Пачка для потасовок 
+ * Пачка для потасовок
  */
 let brawlsPack = null;
 
@@ -2179,7 +2308,7 @@ function confShow(message, yesCallback, noCallback) {
 /**
  * Override/proxy the method for creating a WS package send
  *
- * Переопределяем/проксируем метод создания отправки WS пакета 
+ * Переопределяем/проксируем метод создания отправки WS пакета
  */
 WebSocket.prototype.send = function (data) {
 	if (!this.isSetOnMessage) {
@@ -2248,6 +2377,9 @@ XMLHttpRequest.prototype.open = function (method, url, async, user, password) {
  * Переопределяем/проксируем метод установки заголовков для AJAX запроса
  */
 XMLHttpRequest.prototype.setRequestHeader = function (name, value, check) {
+	if (typeof value === 'string') {
+		oasloHeaders[name.toLowerCase()] = value.trim();
+	}
 	if (this.uniqid in requestHistory) {
 		requestHistory[this.uniqid].headers[name] = value;
 		if (name == 'X-Auth-Signature') {
@@ -2305,7 +2437,7 @@ XMLHttpRequest.prototype.send = async function (sourceData) {
 			getAutoGifts();
 
 			cheats.activateHacks();
-		
+
 			justInfo();
 			if (isChecked('dailyQuests')) {
 				testDailyQuests();
@@ -2396,7 +2528,7 @@ XMLHttpRequest.prototype.send = async function (sourceData) {
 		} catch(e) {
 			debugger;
 		}
-		
+
 	}
 };
 /**
@@ -2995,9 +3127,7 @@ async function checkChangeSend(sourceData, tempData) {
 				}
 			}
 			if (call.name == 'saleShowcase_rewardInfo') {
-				// Обработка больше одного запроса с одинаковыми названиями в пакете
-				requestHistory[this.uniqid].calls[call.name + call.ident] = call.ident;
-				this[call.name + call.ident] = {
+				this[call.name] = {
 					offerId: call.args.offerId,
 				};
 			}
@@ -3622,12 +3752,12 @@ async function checkChangeResponse(response) {
 			if (call.ident == callsIdent['clanWarEndBattle']) {
 				setWarTries(-1, true);
 			}
-			if (call.ident == callsIdent['saleShowcase_rewardInfo' + call.ident]) {
+			if (call.ident == callsIdent['saleShowcase_rewardInfo']) {
 				if (new Date(call.result.response.nextRefill * 1000) < Date.now()) {
-					const offerId = this?.['saleShowcase_rewardInfo' + call.ident]?.offerId;
+					const offerId = this?.['saleShowcase_rewardInfo']?.offerId;
 					if (offerId) {
 						try {
-							Caller.send({ name: 'saleShowcase_farmReward', args: { offerId } });
+							void Caller.send({ name: 'saleShowcase_farmReward', args: { offerId } });
 						} catch (e) {
 							console.error(e);
 						}
@@ -4225,18 +4355,18 @@ function addProgress(text) {
 	scriptMenu.addStatus(text);
 }
 
-/** 
+/**
  * Check Valkyrie's Blessing subscription activity
- * 
- * Проверяет активность подписки на Благославление валькирии 
+ *
+ * Проверяет активность подписки на Благославление валькирии
  */
 function isSubActive() {
 	return subEndTime > Date.now();
 }
 
-/** 
+/**
  * Returns the timer value depending on the subscription
- * 
+ *
  * Возвращает значение таймера в зависимости от подписки
  */
 function getTimer(time, div) {
@@ -4304,7 +4434,7 @@ this.HWHData = {
 
 /**
  * Game Library
- * 
+ *
  * Игровая библиотека
  */
 class Library {
@@ -4518,7 +4648,7 @@ function getAllValuesStartingWith(prefix) {
 /**
  * Opens or migrates to a database
  *
- * Открывает или мигрирует в базу данных 
+ * Открывает или мигрирует в базу данных
  */
 async function openOrMigrateDatabase(userId) {
 	storage.init();
@@ -4786,7 +4916,7 @@ this.HWHClasses.TaskManager = TaskManager;
  * Calculates HASH MD5 from string
  *
  * Расчитывает HASH MD5 из строки
- * 
+ *
  * [js-md5]{@link https://github.com/emn178/js-md5}
  *
  * @namespace md5
@@ -7275,7 +7405,7 @@ async function rewardBossRatingEventSouls(bossEventInfo) {
 }
 /**
  * Spin the Seer
- * 
+ *
  * Покрутить провидца
  */
 async function rollAscension() {
@@ -7291,7 +7421,7 @@ async function rollAscension() {
 
 /**
  * Collect gifts for the New Year
- * 
+ *
  * Собрать подарки на новый год
  */
 async function getGiftNewYear() {
@@ -7781,7 +7911,7 @@ const popup = new (function () {
 	this.init = function () {
 		if (this.isInit) {
 			return;
-		} 
+		}
 		addStyle();
 		addBlocks();
 		addEventListeners();
@@ -9183,8 +9313,8 @@ scriptMenu.init();
 scriptMenu.addHeader('v1.508');
 scriptMenu.addCheckbox('testHack', 'Тестовый взлом игры!');
 scriptMenu.addButton({
-	text: 'Запуск!', 
-	onClick: () => console.log('click'), 
+	text: 'Запуск!',
+	onClick: () => console.log('click'),
 	title: 'подсказака',
 });
 scriptMenu.addInputText('input подсказака');
@@ -9723,7 +9853,7 @@ function executeDungeon(resolve, reject) {
 	/**
 	 * Returns the coefficient of condition of the
 	 * difference in titanium before and after the battle
-	 * 
+	 *
 	 * Возвращает коэффициент состояния титанов после боя
 	 */
 	function getState(result) {
@@ -11681,7 +11811,7 @@ function executeAutoBattle(resolve, reject) {
 	let countBattle = 0;
 	let countError = 0;
 	let findCoeff = 0;
-	let dataNotEeceived = 0; 
+	let dataNotEeceived = 0;
 	let stopAutoBattle = false;
 
 	let isSetWinTimer = false;
@@ -11911,7 +12041,7 @@ function executeAutoBattle(resolve, reject) {
 			if (nameFuncStartBattle == 'invasion_bossStart' && !isSetWinTimer) {
 				const { invasionInfo, invasionDataPacks } = HWHData;
 
-				
+
 				let timer = '0';
 				const pack = invasionDataPacks[invasionInfo.bossLvl];
 				if (pack && pack.timer && (pack.buff == invasionInfo.buff)) {
@@ -14520,7 +14650,7 @@ function testCompany(missions, isRaids = false) {
 	});
 }
 
-/** 
+/**
  * Fulfilling company missions
  * Выполнение миссий компании
  */
@@ -15119,7 +15249,7 @@ class ZingerYWebsiteAPI {
 		return {
 			'X-Request-Signature': this.sign(),
 			'X-Script-Name': GM_info.script.name,
-			'X-Script-Version': '2.459',
+			'X-Script-Version': '2.458',
 			'X-Script-Author': GM_info.script.author,
 			'X-Script-ZingerY': 43,
 			'X-Script-Key': '1',
@@ -15127,7 +15257,7 @@ class ZingerYWebsiteAPI {
 	}
 
 	async request() {
-		if (this.fd.info[0] != 'HeroWarsHelper' || this.fd.info[1] != '2.459') {
+		if (this.fd.info[0] != 'HeroWarsHelper' || this.fd.info[1] != '2.458') {
 			throw Error('Access denied');
 		}
 
