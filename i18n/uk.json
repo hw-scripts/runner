@@ -62,6 +62,7 @@
     "GEAR_FARM_UNAVAILABLE":  "Компонентів без доступної місії: {count}",
     "GEAR_FARM_PROGRESS":  "Фарм спорядження: {mission}, рейд {done}/{total}, енергія {stamina}/{limit}",
     "GEAR_FARM_DONE":  "Фарм спорядження завершено: проходів {raids}, витрачено енергії {stamina}, створено предметів {crafted}",
+    "GEAR_FARM_STOPPED":  "Фарм спорядження зупинено: проходів {raids}, витрачено енергії {stamina}",
     "GEAR_FARM_CRAFTING":  "Створення: {item} x{amount}",
     "GEAR_FARM_ERROR":  "Фарм спорядження зупинено: гра повернула помилку",
     "OASLO_TOOL":  "Запустіть оновлення сну",
