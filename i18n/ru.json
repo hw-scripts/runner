@@ -62,6 +62,7 @@
     "GEAR_FARM_UNAVAILABLE":  "Компонентов без доступной миссии: {count}",
     "GEAR_FARM_PROGRESS":  "Фарм экипировки: {mission}, рейд {done}/{total}, энергия {stamina}/{limit}",
     "GEAR_FARM_DONE":  "Фарм экипировки завершён: проходов {raids}, потрачено энергии {stamina}, создано предметов {crafted}",
+    "GEAR_FARM_STOPPED":  "Фарм экипировки остановлен: проходов {raids}, потрачено энергии {stamina}",
     "GEAR_FARM_CRAFTING":  "Создание: {item} x{amount}",
     "GEAR_FARM_ERROR":  "Фарм экипировки остановлен: игра вернула ошибку",
     "OASLO_TOOL":  "Апгрейд героев во сне",

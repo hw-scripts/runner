@@ -62,6 +62,7 @@
     "GEAR_FARM_UNAVAILABLE":  "Components without an available mission: {count}",
     "GEAR_FARM_PROGRESS":  "Gear farm: {mission}, raid {done}/{total}, energy {stamina}/{limit}",
     "GEAR_FARM_DONE":  "Gear farm completed: {raids} run(s), {stamina} energy spent, {crafted} item(s) crafted",
+    "GEAR_FARM_STOPPED":  "Gear farm stopped: {raids} run(s), {stamina} energy spent",
     "GEAR_FARM_CRAFTING":  "Crafting {item} x{amount}",
     "GEAR_FARM_ERROR":  "Gear farming stopped because the game returned an error",
     "OASLO_TOOL":  "Launch sleep upgrade",

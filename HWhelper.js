@@ -822,14 +822,6 @@
 			},
 			onClick: () => new GearFarmer().start(),
 		},
-		gearFarmPriority: {
-			name: '↕',
-			get title() {
-				return I18N('GEAR_FARM_PRIORITY_TITLE');
-			},
-			onClick: () => new GearFarmer().configurePriorities(),
-			color: 'green',
-		},
 		oasloTool: {
 			get name() {
 				return I18N('OASLO_TOOL');
@@ -6330,7 +6322,7 @@
 		}
 	}
 
-	function countdownTimer(seconds, message, onClick = null, autoHide = true) {
+	function countdownTimer(seconds, message, onClick = null, autoHide = true, stopOnClick = true) {
 		message = message || I18N('TIMER');
 		const stopTimer = Date.now() + seconds * 1e3;
 		const isOnClick = typeof onClick === 'function';
@@ -6341,9 +6333,11 @@
 				const clickHandler = isOnClick
 					? () => {
 						onClick();
-						clearInterval(interval);
-						setProgress('', true);
-						resolve(false);
+						if (stopOnClick) {
+							clearInterval(interval);
+							setProgress('', true);
+							resolve(false);
+						}
 					}
 					: undefined;
 
@@ -13604,11 +13598,11 @@
 	 * @param {Boolean} isRaids
 	 * @returns
 	 */
-	function testCompany(missions, isRaids = false, getMissionLabel = null) {
+	function testCompany(missions, isRaids = false, getMissionLabel = null, onProgressClick = null, shouldStop = null) {
 		const { ExecuteCompany } = HWHClasses;
 		return new Promise((resolve, reject) => {
 			const tower = new ExecuteCompany(resolve, reject);
-			tower.start(missions, isRaids, getMissionLabel);
+			tower.start(missions, isRaids, getMissionLabel, onProgressClick, shouldStop);
 		});
 	}
 
@@ -13631,10 +13625,12 @@
 			};
 		}
 
-		async start(missionIds, isRaids, getMissionLabel = null) {
+		async start(missionIds, isRaids, getMissionLabel = null, onProgressClick = null, shouldStop = null) {
 			this.missionsIds = missionIds;
 			this.isRaid = isRaids;
 			this.getMissionLabel = getMissionLabel;
+			this.onProgressClick = onProgressClick;
+			this.shouldStop = shouldStop;
 			const data = await Caller.send(['teamGetAll', 'teamGetFavor']);
 			this.startCompany(data);
 		}
@@ -13661,6 +13657,10 @@
 		}
 
 		checkStat() {
+			if (this.shouldStop?.()) {
+				this.endCompany('stopped');
+				return;
+			}
 			if (!this.missionsIds[this.currentNum].times) {
 				this.currentNum++;
 			}
@@ -13672,7 +13672,7 @@
 
 			this.argsMission.id = this.missionsIds[this.currentNum].id;
 			this.currentTimes = this.missionsIds[this.currentNum].times;
-			setProgress(this.getMissionStatus(), false);
+			setProgress(this.getMissionStatus(), false, this.onProgressClick);
 			if (this.isRaid) {
 				this.missionRaid();
 			} else {
@@ -13715,7 +13715,7 @@
 
 		async missionEnd(r) {
 			const timer = r.battleTimer;
-			await countdownTimer(timer, this.getMissionStatus());
+			await countdownTimer(timer, this.getMissionStatus(), this.onProgressClick, true, false);
 
 			try {
 				await Caller.send({
@@ -13775,11 +13775,22 @@
 		}
 
 		async configurePriorities() {
-			const heroes = Object.values(await Caller.send('heroGetAll')).sort((left, right) => this.getHeroName(left.id).localeCompare(this.getHeroName(right.id)));
+			const [allHeroes, inventory, missions] = await Caller.send(['heroGetAll', 'inventoryGet', 'missionGetAll']);
+			const heroes = Object.values(allHeroes)
+				.map((hero) => {
+					const missingSlots = this.getTierSlots(hero).filter(({ slotId }) => !this.isSlotEquipped(hero, slotId));
+					const targets = this.buildMissingItems(missingSlots, inventory);
+					const canEquipTier = missingSlots.every(({ itemId }) => Number(hero.level) >= this.getGearHeroLevelRequirement(itemId));
+					return {
+						...hero,
+						disabled: !canEquipTier || !targets.length || !targets.some((target) => this.getMissionOptions(target, missions).length),
+					};
+				})
+				.sort((left, right) => Number(right.power) - Number(left.power));
 			const icons = Object.fromEntries(await Promise.all(heroes.map(async (hero) => [hero.id, await this.getHeroIcon(hero.id)])));
-			let order = this.getPriorityOrder().filter((heroId) => heroes.some((hero) => Number(hero.id) === heroId));
-			await popup.customPopup((complete) => {
-				popup.setMsgText(I18N('GEAR_FARM_PRIORITY'));
+			let order = this.getPriorityOrder().filter((heroId) => heroes.some((hero) => Number(hero.id) === heroId && !hero.disabled));
+			return popup.customPopup((complete) => {
+				popup.setMsgText(I18N('GEAR_FARM'));
 				const grid = document.createElement('div');
 				grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:6px;padding:12px 4px;max-width:520px';
 				const footer = document.createElement('div');
@@ -13792,7 +13803,8 @@
 						const cell = document.createElement('button');
 						cell.type = 'button';
 						cell.title = this.getHeroName(heroId);
-						cell.style.cssText = `position:relative;height:52px;border:1px solid ${priority >= 0 ? '#88cb13' : '#cf9250'};background:#170d07;cursor:pointer;padding:2px`;
+						cell.disabled = hero.disabled;
+						cell.style.cssText = `position:relative;height:52px;border:1px solid ${priority >= 0 ? '#88cb13' : '#cf9250'};background:#170d07;cursor:${hero.disabled ? 'not-allowed' : 'pointer'};opacity:${hero.disabled ? '.3' : '1'};padding:2px`;
 						if (icons[heroId]) {
 							const image = document.createElement('img');
 							image.src = icons[heroId];
@@ -13808,10 +13820,12 @@
 							badge.style.cssText = 'position:absolute;right:-3px;top:-5px;min-width:16px;height:16px;border-radius:9px;background:#88cb13;color:#170d07;font-weight:bold;font-size:12px;line-height:16px';
 							cell.append(badge);
 						}
-						cell.addEventListener('click', () => {
-							order = priority >= 0 ? order.filter((id) => id !== heroId) : [...order, heroId];
-							render();
-						});
+						if (!hero.disabled) {
+							cell.addEventListener('click', () => {
+								order = priority >= 0 ? order.filter((id) => id !== heroId) : [...order, heroId];
+								render();
+							});
+						}
 						grid.append(cell);
 					});
 				};
@@ -13952,6 +13966,18 @@
 
 		getItemData(type, itemId) {
 			return lib.data?.inventoryItem?.[type]?.[itemId] ?? {};
+		}
+
+		getGearHeroLevelRequirement(itemId) {
+			return Math.max(0, Number(this.getItemData('gear', itemId).heroLevel) || 0);
+		}
+
+		requestStop() {
+			this.stopRequested = true;
+		}
+
+		setFarmProgress(message) {
+			setProgress(message, false, () => this.requestStop());
 		}
 
 		getRecipe(type, itemId) {
@@ -14120,18 +14146,17 @@
 				return;
 			}
 			GearFarmer.running = true;
+			this.stopRequested = false;
 			try {
-				if (!getSaveVal('gearFarmHeroPriorityConfigured', false)) {
-					await this.configurePriorities();
-					if (!getSaveVal('gearFarmHeroPriorityConfigured', false)) {
-						return;
-					}
+				const priorityOrder = await this.configurePriorities();
+				if (!priorityOrder) {
+					return;
 				}
 				let heroes = Object.values(await Caller.send('heroGetAll'))
 					.filter((hero) => this.getTierSlots(hero).some(({ slotId }) => !this.isSlotEquipped(hero, slotId)))
 					.sort((left, right) => Number(right.power) - Number(left.power));
 				const heroesById = new Map(heroes.map((hero) => [Number(hero.id), hero]));
-				heroes = this.getPriorityOrder().map((heroId) => heroesById.get(heroId)).filter(Boolean);
+				heroes = priorityOrder.map((heroId) => heroesById.get(heroId)).filter(Boolean);
 				if (!heroes.length) {
 					await popup.confirm(I18N('GEAR_FARM_ALL_EQUIPPED'));
 					return;
@@ -14197,7 +14222,7 @@
 					let currentMissions = missions;
 					let spent = 0;
 					let runs = 0;
-					while (spent < energyLimit) {
+					while (spent < energyLimit && !this.stopRequested) {
 						const missingItems = this.buildMissingItems(missingSlots, currentInventory);
 						if (!missingItems.length) {
 							break;
@@ -14210,46 +14235,55 @@
 							break;
 						}
 						const { mission } = nextMission;
-						setProgress(I18N('GEAR_FARM_NORMAL_PROGRESS', {
+						this.setFarmProgress(I18N('GEAR_FARM_NORMAL_PROGRESS', {
 							runs: runs + 1,
 							stamina: spent + mission.cost,
 							limit: energyLimit,
-						}), false);
-						await testCompany([{ id: mission.id, times: 1 }], false, (id) => this.getFarmLocation(nextMission.target, id));
+						}));
+						await testCompany(
+							[{ id: mission.id, times: 1 }],
+							false,
+							(id) => this.getFarmLocation(nextMission.target, id),
+							() => this.requestStop(),
+							() => this.stopRequested,
+						);
 						[currentInventory, currentMissions] = await Caller.send(['inventoryGet', 'missionGetAll']);
 						spent += mission.cost;
 						runs++;
 					}
-					const crafted = await this.craftGear(missingSlots);
-					setProgress(I18N('GEAR_FARM_DONE', { raids: runs, stamina: spent, crafted }), true);
+					const crafted = this.stopRequested ? 0 : await this.craftGear(missingSlots);
+					setProgress(I18N(this.stopRequested ? 'GEAR_FARM_STOPPED' : 'GEAR_FARM_DONE', { raids: runs, stamina: spent, crafted }), true);
 					return;
 				}
 				let spent = 0;
 				let raidsDone = 0;
 				for (const raid of raids) {
+					if (this.stopRequested) {
+						break;
+					}
 					const availableRaids = Math.floor((energyLimit - spent) / (raid.cost * raidBatchSize)) * raidBatchSize;
 					const times = Math.min(raid.times, availableRaids);
 					if (!times) {
 						break;
 					}
 					let remaining = times;
-					while (remaining > 0) {
+					while (remaining > 0 && !this.stopRequested) {
 						const batch = raidBatchSize;
-						setProgress(I18N('GEAR_FARM_PROGRESS', {
+						this.setFarmProgress(I18N('GEAR_FARM_PROGRESS', {
 							mission: this.getFarmLocation(raid.target, raid.id),
 							done: raidsDone + batch,
 							total: plannedRaids,
 							stamina: spent + batch * raid.cost,
 							limit: energyLimit,
-						}), false);
+						}));
 						await Caller.send({ name: 'missionRaid', args: { id: raid.id, times: batch } });
 						remaining -= batch;
 						spent += batch * raid.cost;
 						raidsDone += batch;
 					}
 				}
-				const crafted = await this.craftGear(missingSlots);
-				setProgress(I18N('GEAR_FARM_DONE', { raids: raidsDone, stamina: spent, crafted }), true);
+				const crafted = this.stopRequested ? 0 : await this.craftGear(missingSlots);
+				setProgress(I18N(this.stopRequested ? 'GEAR_FARM_STOPPED' : 'GEAR_FARM_DONE', { raids: raidsDone, stamina: spent, crafted }), true);
 			} catch (error) {
 				console.error('Gear farm failed', error);
 				const details = String(error?.message ?? error).replace(/[&<>"']/g, (character) => ({
