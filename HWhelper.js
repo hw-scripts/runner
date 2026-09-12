@@ -822,15 +822,6 @@
 			},
 			onClick: () => new GearFarmer().start(),
 		},
-		heroTraining: {
-			get name() {
-				return I18N('HERO_TRAINING');
-			},
-			get title() {
-				return I18N('HERO_TRAINING_TITLE');
-			},
-			onClick: () => new HeroTrainer().start(),
-		},
 		oasloTool: {
 			get name() {
 				return I18N('OASLO_TOOL');
@@ -14375,60 +14366,6 @@
 	}
 
 	this.HWHClasses.GearFarmer = GearFarmer;
-	class HeroTrainer {
-		getPriorityOrder() {
-			const savedOrder = getSaveVal('gearFarmHeroPriority', []);
-			return Array.isArray(savedOrder) ? savedOrder.map(Number).filter((heroId) => heroId > 0) : [];
-		}
-
-		getSkillTiers(hero) {
-			const skillLib = lib.getData('skill');
-			const unlockColors = [0, 1, 2, 4, 7];
-			return Object.entries(hero.skills ?? {})
-				.map(([skillId, level]) => ({ tier: Number(skillLib?.[skillId]?.tier), level: Number(level) || 0 }))
-				.filter(({ tier }) => tier >= 1 && tier <= 4 && Number(hero.color) >= unlockColors[tier]);
-		}
-
-		async upgradeSkills(heroId) {
-			let heroes = await Caller.send('heroGetAll');
-			let hero = heroes[heroId];
-			while (hero) {
-				const skill = this.getSkillTiers(hero).find(({ tier, level }) => level < Number(hero.level));
-				if (!skill) {
-					return;
-				}
-				await Caller.send({ name: 'heroUpgradeSkill', args: { heroId, skill: skill.tier } });
-				heroes = await Caller.send('heroGetAll');
-				hero = heroes[heroId];
-			}
-		}
-
-		async start() {
-			const limitValue = Number(await popup.confirm(I18N('HERO_TRAINING_PLAN'), [
-				{ msg: I18N('BTN_CANCEL'), result: false, isCancel: true, color: 'red' },
-				{ msg: I18N('BTN_RUN'), isInput: true, default: 0, color: 'green' },
-			]));
-			if (!Number.isFinite(limitValue) || limitValue < 0) {
-				return;
-			}
-			const [user, heroMap] = await Caller.send(['userGetInfo', 'heroGetAll']);
-			const levelLimit = limitValue || Number(user.level);
-			for (const heroId of this.getPriorityOrder()) {
-				let hero = heroMap[heroId];
-				while (hero && Number(hero.level) < levelLimit) {
-					setProgress(I18N('HERO_TRAINING_PROGRESS', { hero: cheats.translate(`LIB_HERO_NAME_${heroId}`), level: Number(hero.level) + 1, limit: levelLimit }), false);
-					await Caller.send({ name: 'heroLevelUp', args: { heroId, level: Number(hero.level) + 1 } });
-					hero = (await Caller.send('heroGetAll'))[heroId];
-				}
-				if (hero) {
-					await this.upgradeSkills(heroId);
-				}
-			}
-			setProgress(I18N('HERO_TRAINING_DONE'), true);
-		}
-	}
-
-	this.HWHClasses.HeroTrainer = HeroTrainer;
 	class InventoryTidier {
 		inventory = {};
 
