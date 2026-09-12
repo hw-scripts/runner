@@ -1,14 +1,11 @@
 // ==UserScript==
-// @name         HeroWarsHelper Runner
-// @name:en      HeroWarsHelper Runner
-// @name:uk      HeroWarsHelper Runner
-// @name:ru      HeroWarsHelper Runner
+// @name         HWrunner
 // @namespace    https://github.com/yuriimouse/runner
-// @version      0.2.0
-// @description  Hero Wars helper and farming tools
-// @description:en Hero Wars helper and farming tools
-// @description:uk Помічник і інструменти фарму для Hero Wars
-// @description:ru Помощник и инструменты фарма для Hero Wars
+// @version      1.0.0
+// @description  Hero Wars autorunner
+// @description:en Hero Wars autorunner
+// @description:uk Автоматичний працівник для Hero Wars
+// @description:ru Автоматический работник для Hero Wars
 // @author       yuriimouse, based on HeroWarsHelper by ZingerY
 // @homepageURL  https://github.com/yuriimouse/runner
 // @supportURL   https://github.com/yuriimouse/runner/issues
@@ -1290,11 +1287,11 @@
 	 * Adds links
 	 *
 	 */
-	function addBottomUrls() {
-		const { ScriptMenu } = HWHClasses;
-		const scriptMenu = ScriptMenu.getInst();
-		scriptMenu.addHeader(I18N('BOTTOM_URLS'));
-	}
+	// function addBottomUrls() {
+	// 	const { ScriptMenu } = HWHClasses;
+	// 	const scriptMenu = ScriptMenu.getInst();
+	// 	scriptMenu.addHeader(I18N('BOTTOM_URLS'));
+	// }
 	/**
 	 * Stop repetition of the mission
 	 *
@@ -1643,7 +1640,7 @@
 				}
 				addControls();
 				addControlButtons();
-				addBottomUrls();
+				// addBottomUrls();
 
 				if (isChecked('sendExpedition')) {
 					const isTimeBetweenDays = isTimeBetweenNewDays();
