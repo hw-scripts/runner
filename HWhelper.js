@@ -4,7 +4,7 @@
 // @name:uk      HeroWarsHelper Runner
 // @name:ru      HeroWarsHelper Runner
 // @namespace    https://github.com/yuriimouse/runner
-// @version      0.1.0
+// @version      0.2.0
 // @description  Hero Wars helper and farming tools
 // @description:en Hero Wars helper and farming tools
 // @description:uk Помічник і інструменти фарму для Hero Wars
