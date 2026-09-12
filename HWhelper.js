@@ -13975,7 +13975,7 @@
 		}
 
 		isSlotEquipped(hero, slotId) {
-			return Boolean(hero.slots?.[slotId]);
+			return Object.prototype.hasOwnProperty.call(hero.slots ?? {}, slotId);
 		}
 
 		getInventoryAmount(inventory, type, itemId) {
@@ -14192,10 +14192,10 @@
 				}
 				const attempts = Number(missionData?.isHeroic) === 1 ? Math.max(0, 3 - (Number(mission.triesSpent) || 0)) : Infinity;
 				if (attempts > 0) {
-					options.push({ id: missionId, cost, expectedYield, attempts });
+					options.push({ id: missionId, cost, expectedYield, attempts, isHeroic: Number(missionData?.isHeroic) === 1 });
 				}
 			}
-			return options.sort((left, right) => right.expectedYield / right.cost - left.expectedYield / left.cost || left.cost - right.cost);
+			return options.sort((left, right) => Number(right.isHeroic) - Number(left.isHeroic) || right.id - left.id);
 		}
 
 		async start() {
@@ -14229,7 +14229,7 @@
 				const targets = this.buildMissingItems(missingSlots, inventory);
 				const raids = [];
 				const unavailable = [];
-				targets.forEach((target) => {
+					targets.forEach((target) => {
 					const mission = this.getMissionOptions(target, missions).find((option) => vipLevel === 0 || option.attempts >= raidBatchSize);
 					if (mission) {
 						const requiredTimes = Math.max(1, Math.ceil(target.amount / mission.expectedYield));
@@ -14241,6 +14241,7 @@
 						unavailable.push(target);
 					}
 				});
+				raids.sort((left, right) => Number(right.isHeroic) - Number(left.isHeroic) || right.id - left.id);
 				if (!raids.length) {
 					const missingTargets = targets.map(({ type, itemId, amount }) => `${type}:${itemId} x${amount}`).join(', ');
 					console.warn('Gear farm: no mission found for required items', { heroId: hero.id, targets, missions });
@@ -14287,7 +14288,7 @@
 						const nextMission = missingItems
 							.map((target) => ({ target, mission: this.getMissionOptions(target, currentMissions)[0] }))
 							.filter(({ mission }) => mission && mission.cost <= energyLimit - spent)
-							.sort((left, right) => right.mission.expectedYield / right.mission.cost - left.mission.expectedYield / left.mission.cost)[0];
+							.sort((left, right) => Number(right.mission.isHeroic) - Number(left.mission.isHeroic) || right.mission.id - left.mission.id)[0];
 						if (!nextMission) {
 							break;
 						}
