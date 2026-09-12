@@ -822,6 +822,15 @@
 			},
 			onClick: () => new GearFarmer().start(),
 		},
+		heroTraining: {
+			get name() {
+				return I18N('HERO_TRAINING');
+			},
+			get title() {
+				return I18N('HERO_TRAINING_TITLE');
+			},
+			onClick: () => new HeroTrainer().start(),
+		},
 		oasloTool: {
 			get name() {
 				return I18N('OASLO_TOOL');
@@ -13774,6 +13783,11 @@
 			return Array.isArray(savedOrder) ? [...new Set(savedOrder.map(Number).filter((heroId) => heroId > 0))] : [];
 		}
 
+		getAutoEquipHeroes() {
+			const savedHeroes = getSaveVal('gearFarmHeroAutoEquip', {});
+			return savedHeroes && typeof savedHeroes === 'object' && !Array.isArray(savedHeroes) ? { ...savedHeroes } : {};
+		}
+
 		async configurePriorities() {
 			const [allHeroes, inventory, missions] = await Caller.send(['heroGetAll', 'inventoryGet', 'missionGetAll']);
 			const heroes = Object.values(allHeroes)
@@ -13789,6 +13803,7 @@
 				.sort((left, right) => Number(right.power) - Number(left.power));
 			const icons = Object.fromEntries(await Promise.all(heroes.map(async (hero) => [hero.id, await this.getHeroIcon(hero.id)])));
 			let order = this.getPriorityOrder().filter((heroId) => heroes.some((hero) => Number(hero.id) === heroId && !hero.disabled));
+			const autoEquipHeroes = this.getAutoEquipHeroes();
 			return popup.customPopup((complete) => {
 				popup.setMsgText(I18N('GEAR_FARM'));
 				const grid = document.createElement('div');
@@ -13820,6 +13835,21 @@
 							badge.style.cssText = 'position:absolute;right:-3px;top:-5px;min-width:16px;height:16px;border-radius:9px;background:#88cb13;color:#170d07;font-weight:bold;font-size:12px;line-height:16px';
 							cell.append(badge);
 						}
+						const autoEquip = document.createElement('input');
+						autoEquip.type = 'checkbox';
+						autoEquip.checked = Boolean(autoEquipHeroes[heroId]);
+						autoEquip.disabled = hero.disabled;
+						autoEquip.title = I18N('GEAR_FARM_AUTO_EQUIP_TITLE');
+						autoEquip.style.cssText = 'position:absolute;left:3px;bottom:3px;margin:0;width:15px;height:15px;accent-color:#88cb13;cursor:pointer';
+						autoEquip.addEventListener('click', (event) => event.stopPropagation());
+						autoEquip.addEventListener('change', () => {
+							if (autoEquip.checked) {
+								autoEquipHeroes[heroId] = true;
+							} else {
+								delete autoEquipHeroes[heroId];
+							}
+						});
+						cell.append(autoEquip);
 						if (!hero.disabled) {
 							cell.addEventListener('click', () => {
 								order = priority >= 0 ? order.filter((id) => id !== heroId) : [...order, heroId];
@@ -13839,6 +13869,7 @@
 				save.textContent = I18N('BTN_SAVE');
 				save.addEventListener('click', () => {
 					setSaveVal('gearFarmHeroPriority', order);
+					setSaveVal('gearFarmHeroAutoEquip', autoEquipHeroes);
 					setSaveVal('gearFarmHeroPriorityConfigured', true);
 					popup.hide();
 					complete(order);
@@ -13978,6 +14009,41 @@
 
 		setFarmProgress(message) {
 			setProgress(message, false, () => this.requestStop());
+		}
+
+		async autoEquipHero(heroId) {
+			let heroes = await Caller.send('heroGetAll');
+			let hero = heroes[heroId];
+			if (!hero) {
+				return { equipped: 0, promoted: false };
+			}
+			let inventory = await Caller.send('inventoryGet');
+			let equipped = 0;
+			for (const { slotId, itemId } of this.getTierSlots(hero)) {
+				if (this.stopRequested || this.isSlotEquipped(hero, slotId) || Number(hero.level) < this.getGearHeroLevelRequirement(itemId) || this.getInventoryAmount(inventory, 'gear', itemId) < 1) {
+					continue;
+				}
+				try {
+					await Caller.send({ name: 'heroInsertItem', args: { heroId: Number(heroId), slot: slotId } });
+					equipped++;
+				} catch (error) {
+					const message = String(error?.message ?? error?.error ?? error);
+					if (!/slot\s+is\s+occupied/i.test(message)) {
+						throw error;
+					}
+				}
+				[heroes, inventory] = await Caller.send(['heroGetAll', 'inventoryGet']);
+				hero = heroes[heroId];
+				if (!hero) {
+					return { equipped, promoted: false };
+				}
+			}
+			const allSlotsEquipped = this.getTierSlots(hero).length > 0 && this.getTierSlots(hero).every(({ slotId }) => this.isSlotEquipped(hero, slotId));
+			if (!this.stopRequested && allSlotsEquipped) {
+				await Caller.send({ name: 'heroPromote', args: { heroId: Number(heroId) } });
+				return { equipped, promoted: true };
+			}
+			return { equipped, promoted: false };
 		}
 
 		getRecipe(type, itemId) {
@@ -14252,6 +14318,9 @@
 						runs++;
 					}
 					const crafted = this.stopRequested ? 0 : await this.craftGear(missingSlots);
+					if (!this.stopRequested && this.getAutoEquipHeroes()[hero.id]) {
+						await this.autoEquipHero(hero.id);
+					}
 					setProgress(I18N(this.stopRequested ? 'GEAR_FARM_STOPPED' : 'GEAR_FARM_DONE', { raids: runs, stamina: spent, crafted }), true);
 					return;
 				}
@@ -14283,6 +14352,9 @@
 					}
 				}
 				const crafted = this.stopRequested ? 0 : await this.craftGear(missingSlots);
+				if (!this.stopRequested && this.getAutoEquipHeroes()[hero.id]) {
+					await this.autoEquipHero(hero.id);
+				}
 				setProgress(I18N(this.stopRequested ? 'GEAR_FARM_STOPPED' : 'GEAR_FARM_DONE', { raids: raidsDone, stamina: spent, crafted }), true);
 			} catch (error) {
 				console.error('Gear farm failed', error);
@@ -14303,6 +14375,60 @@
 	}
 
 	this.HWHClasses.GearFarmer = GearFarmer;
+	class HeroTrainer {
+		getPriorityOrder() {
+			const savedOrder = getSaveVal('gearFarmHeroPriority', []);
+			return Array.isArray(savedOrder) ? savedOrder.map(Number).filter((heroId) => heroId > 0) : [];
+		}
+
+		getSkillTiers(hero) {
+			const skillLib = lib.getData('skill');
+			const unlockColors = [0, 1, 2, 4, 7];
+			return Object.entries(hero.skills ?? {})
+				.map(([skillId, level]) => ({ tier: Number(skillLib?.[skillId]?.tier), level: Number(level) || 0 }))
+				.filter(({ tier }) => tier >= 1 && tier <= 4 && Number(hero.color) >= unlockColors[tier]);
+		}
+
+		async upgradeSkills(heroId) {
+			let heroes = await Caller.send('heroGetAll');
+			let hero = heroes[heroId];
+			while (hero) {
+				const skill = this.getSkillTiers(hero).find(({ tier, level }) => level < Number(hero.level));
+				if (!skill) {
+					return;
+				}
+				await Caller.send({ name: 'heroUpgradeSkill', args: { heroId, skill: skill.tier } });
+				heroes = await Caller.send('heroGetAll');
+				hero = heroes[heroId];
+			}
+		}
+
+		async start() {
+			const limitValue = Number(await popup.confirm(I18N('HERO_TRAINING_PLAN'), [
+				{ msg: I18N('BTN_CANCEL'), result: false, isCancel: true, color: 'red' },
+				{ msg: I18N('BTN_RUN'), isInput: true, default: 0, color: 'green' },
+			]));
+			if (!Number.isFinite(limitValue) || limitValue < 0) {
+				return;
+			}
+			const [user, heroMap] = await Caller.send(['userGetInfo', 'heroGetAll']);
+			const levelLimit = limitValue || Number(user.level);
+			for (const heroId of this.getPriorityOrder()) {
+				let hero = heroMap[heroId];
+				while (hero && Number(hero.level) < levelLimit) {
+					setProgress(I18N('HERO_TRAINING_PROGRESS', { hero: cheats.translate(`LIB_HERO_NAME_${heroId}`), level: Number(hero.level) + 1, limit: levelLimit }), false);
+					await Caller.send({ name: 'heroLevelUp', args: { heroId, level: Number(hero.level) + 1 } });
+					hero = (await Caller.send('heroGetAll'))[heroId];
+				}
+				if (hero) {
+					await this.upgradeSkills(heroId);
+				}
+			}
+			setProgress(I18N('HERO_TRAINING_DONE'), true);
+		}
+	}
+
+	this.HWHClasses.HeroTrainer = HeroTrainer;
 	class InventoryTidier {
 		inventory = {};
 
