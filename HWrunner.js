@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HWrunner
 // @namespace    https://github.com/yuriimouse/runner
-// @version      1.0.0
+// @version      1.0.5
 // @description  Hero Wars autorunner
 // @description:en Hero Wars autorunner
 // @description:uk Автоматичний працівник для Hero Wars
@@ -2517,16 +2517,6 @@
 					}
 				}
 				/**
-				 * Access to Prestige rewards and quests on a non-prestige day
-				 */
-				if (call.ident == callsIdent['clan_prestigeGetInfo']) {
-					if (!call.result.response.prestigeId) {
-						call.result.response.prestigeId = 2;
-						call.result.response.endTime = call.result.response.nextTime;
-						this._isChangeResponse = true;
-					}
-				}
-				/**
 				 * Start of the battle for recalculation
 				 */
 				if (
@@ -3279,7 +3269,7 @@
 		const { ScriptMenu } = HWHClasses;
 		const scriptMenu = ScriptMenu.getInst();
 		scriptMenu.init();
-		scriptMenu.addHeader(GM_info.script.name, justInfo);
+		scriptMenu.addHeader(`${GM_info.script.name} ${GM_info.script.version}`, justInfo);
 		const languageHeader = scriptMenu.addHeader('');
 		languageHeader.classList.add('scriptMenu_languageHeader');
 		const languageSelect = document.createElement('select');
