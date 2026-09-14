@@ -412,5 +412,10 @@
     "SEERGAME_END":  "Ending the game and claiming rewards",
     "SEERGAME_FINISH":  "SeerGame completed, spent {spentCoins} coins",
     "SEERGAME_RESTART":  "Restarting the game...",
+    "PACKS":  "Packs",
+    "PACKS_TITLE":  "Manage hero development packs",
+    "PACK":  "Pack",
+    "PACK_BANNER":  "Pack banner",
+    "PACK_PET":  "Main pet",
     "SEERGAME_PROGRESS":  "Round {round}, Consecutive wins: {streak}"
 }

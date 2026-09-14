@@ -1,14 +1,14 @@
 // ==UserScript==
 // @name         HWrunner
-// @namespace    https://github.com/yuriimouse/runner
-// @version      1.0.6
+// @namespace    https://github.com/hw-scripts/runner
+// @version      1.0.7
 // @description  Hero Wars autorunner
 // @description:en Hero Wars autorunner
 // @description:uk Автоматичний працівник для Hero Wars
 // @description:ru Автоматический работник для Hero Wars
 // @author       yuriimouse, based on HeroWarsHelper by ZingerY
-// @homepageURL  https://github.com/yuriimouse/runner
-// @supportURL   https://github.com/yuriimouse/runner/issues
+// @homepageURL  https://github.com/hw-scripts/runner
+// @supportURL   https://github.com/hw-scripts/runner/issues
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=hero-wars.com
 // @match			https://www.hero-wars.com/*
 // @match			https://www.hero-wars.cn/*
@@ -319,7 +319,7 @@
 	const scriptLanguages = ['en', 'uk', 'ru'];
 	const scriptLanguageStorageKey = GM_info.script.name + ':language';
 	const i18nLangData = {};
-	const i18nRepositoryUrl = 'https://raw.githubusercontent.com/yuriimouse/runner/master/i18n';
+	const i18nRepositoryUrl = 'https://raw.githubusercontent.com/hw-scripts/runner/master/i18n';
 	const i18nCacheKeyPrefix = GM_info.script.name + ':i18n:';
 
 	function requestLanguageDictionary(language) {

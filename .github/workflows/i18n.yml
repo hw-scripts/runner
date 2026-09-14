@@ -1,0 +1,60 @@
+name: i18n
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate dictionaries
+        shell: pwsh
+        run: ./i18n/i18n.ps1 -Action Validate
+
+  publish-to-master:
+    if: github.event_name == 'push' && github.ref != 'refs/heads/master'
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: dictionary
+        name: Check dictionary changes
+        shell: bash
+        run: |
+          git fetch origin master
+          if git diff --quiet origin/master...HEAD -- i18n/translations.json i18n/en.json i18n/uk.json i18n/ru.json; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Prepare dictionary-only change
+        if: steps.dictionary.outputs.changed == 'true'
+        shell: bash
+        run: |
+          source_sha="$GITHUB_SHA"
+          git switch --detach origin/master
+          git checkout "$source_sha" -- i18n/translations.json i18n/en.json i18n/uk.json i18n/ru.json
+
+      - name: Create or update dictionary PR
+        if: steps.dictionary.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: automation/i18n-${{ github.ref_name }}
+          base: master
+          title: "i18n: sync from ${{ github.ref_name }}"
+          commit-message: "i18n: sync from ${{ github.ref_name }}"
+          body: |
+            Automated dictionary update from `${{ github.ref_name }}`.
+
+            This pull request contains only the canonical dictionary and generated runtime dictionaries.
+          delete-branch: true

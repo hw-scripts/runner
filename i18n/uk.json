@@ -412,5 +412,10 @@
     "SEERGAME_END":  "Завершення гри та отримання винагороди",
     "SEERGAME_FINISH":  "SeerGame завершено, витрачено {spentCoins} монет",
     "SEERGAME_RESTART":  "Перезапуск гри...",
+    "PACKS":  "Паки",
+    "PACKS_TITLE":  "Керування паками розвитку героїв",
+    "PACK":  "Пак",
+    "PACK_BANNER":  "Стяг паку",
+    "PACK_PET":  "Головний пет",
     "SEERGAME_PROGRESS":  "Round {round}, Послідовних перемог: {streak}"
 }
