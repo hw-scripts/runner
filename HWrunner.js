@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HWrunner
 // @namespace    https://github.com/hw-scripts/runner
-// @version      1.0.10
+// @version      1.0.11
 // @description  Hero Wars autorunner
 // @description:en Hero Wars autorunner
 // @description:uk Автоматичний працівник для Hero Wars
@@ -123,12 +123,17 @@
 			throw new Error(`Не найдены игровые заголовки: ${missingHeaders.join(', ')}`);
 		}
 
-		let serverId;
+		let serverId = gameServerId;
 		for (const request of Object.values(requestHistory).reverse()) {
+			if (serverId) {
+				break;
+			}
 			try {
 				const response = JSON.parse(request.response);
 				serverId = response.results?.map((call) => call.result?.response?.serverId).find(Boolean);
-				if (serverId) break;
+				if (serverId) {
+					gameServerId = serverId;
+				}
 			} catch (e) { }
 		}
 		if (!serverId) {
@@ -259,6 +264,7 @@
 	 *
 	 */
 	let requestHistory = {};
+	let gameServerId = null;
 	/**
 	 * URL for API requests
 	 *
@@ -2367,6 +2373,7 @@
 			this._isChangeResponse = false;
 			callsIdent = requestHistory[this.uniqid].calls;
 			respond = JSON.parse(response);
+			gameServerId ||= respond.results?.map((call) => call.result?.response?.serverId).find(Boolean) || null;
 			/**
 			 * If the request returned an error removes the error (removes synchronization errors)
 			 */
