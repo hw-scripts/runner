@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HWrunner
 // @namespace    https://github.com/hw-scripts/runner
-// @version      1.0.7
+// @version      1.0.8
 // @description  Hero Wars autorunner
 // @description:en Hero Wars autorunner
 // @description:uk Автоматичний працівник для Hero Wars
@@ -13772,10 +13772,9 @@
 				.map((hero) => {
 					const missingSlots = this.getTierSlots(hero).filter(({ slotId }) => !this.isSlotEquipped(hero, slotId));
 					const targets = this.buildMissingItems(missingSlots, inventory);
-					const canEquipTier = missingSlots.every(({ itemId }) => Number(hero.level) >= this.getGearHeroLevelRequirement(itemId));
 					return {
 						...hero,
-						disabled: !canEquipTier || !targets.length || !targets.some((target) => this.getMissionOptions(target, missions).length),
+						disabled: !targets.length || !targets.some((target) => this.getMissionOptions(target, missions).length),
 					};
 				})
 				.sort((left, right) => Number(right.power) - Number(left.power));
