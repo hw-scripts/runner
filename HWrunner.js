@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HWrunner
 // @namespace    https://github.com/hw-scripts/runner
-// @version      1.0.8
+// @version      1.0.9
 // @description  Hero Wars autorunner
 // @description:en Hero Wars autorunner
 // @description:uk Автоматичний працівник для Hero Wars
@@ -14184,6 +14184,44 @@
 			return options.sort((left, right) => Number(right.isHeroic) - Number(left.isHeroic) || right.id - left.id);
 		}
 
+		getHeroicRaids(targets, missions) {
+			const raids = new Map();
+			for (const target of targets) {
+				for (const mission of this.getMissionOptions(target, missions)) {
+					if (!mission.isHeroic || raids.has(mission.id)) {
+						continue;
+					}
+					raids.set(mission.id, { ...mission, target, times: mission.attempts, batchSize: 1 });
+				}
+			}
+			return [...raids.values()].sort((left, right) => right.id - left.id);
+		}
+
+		getNormalRaids(targets, missions, batchSize) {
+			return targets.flatMap((target) => {
+				const mission = this.getMissionOptions(target, missions).find((option) => !option.isHeroic);
+				if (!mission) {
+					return [];
+				}
+				const requiredTimes = Math.max(1, Math.ceil(target.amount / mission.expectedYield));
+				const times = Math.ceil(Math.max(batchSize, requiredTimes) / batchSize) * batchSize;
+				return [{ ...mission, target, times, batchSize }];
+			}).sort((left, right) => right.id - left.id);
+		}
+
+		planRaids(raids, energy) {
+			let energyLeft = energy;
+			const plan = [];
+			for (const raid of raids) {
+				const times = Math.min(raid.times, Math.floor(energyLeft / (raid.cost * raid.batchSize)) * raid.batchSize);
+				if (times > 0) {
+					plan.push({ ...raid, times });
+					energyLeft -= times * raid.cost;
+				}
+			}
+			return plan;
+		}
+
 		async start() {
 			if (GearFarmer.running) {
 				return;
@@ -14213,31 +14251,16 @@
 				const raidBatchSize = 10;
 				const missingSlots = this.getTierSlots(hero).filter(({ slotId }) => !this.isSlotEquipped(hero, slotId));
 				const targets = this.buildMissingItems(missingSlots, inventory);
-				const raids = [];
-				const unavailable = [];
-					targets.forEach((target) => {
-					const mission = this.getMissionOptions(target, missions).find((option) => vipLevel === 0 || option.attempts >= raidBatchSize);
-					if (mission) {
-						const requiredTimes = Math.max(1, Math.ceil(target.amount / mission.expectedYield));
-						const times = vipLevel === 0
-							? Math.min(mission.attempts, requiredTimes)
-							: Math.ceil(Math.max(raidBatchSize, requiredTimes) / raidBatchSize) * raidBatchSize;
-						raids.push({ ...mission, target, times });
-					} else {
-						unavailable.push(target);
-					}
-				});
-				raids.sort((left, right) => Number(right.isHeroic) - Number(left.isHeroic) || right.id - left.id);
-				if (!raids.length) {
+				const unavailable = targets.filter((target) => !this.getMissionOptions(target, missions).length);
+				if (unavailable.length === targets.length) {
 					const missingTargets = targets.map(({ type, itemId, amount }) => `${type}:${itemId} x${amount}`).join(', ');
 					console.warn('Gear farm: no mission found for required items', { heroId: hero.id, targets, missions });
 					await popup.confirm(`${I18N('GEAR_FARM_NO_MISSIONS')}<br><small>${missingTargets}</small>`);
 					return;
 				}
 
-				const details = raids.map(({ target, id, times, cost }) => I18N('GEAR_FARM_MISSION', { mission: this.getFarmLocation(target, id), times, stamina: times * cost })).join('<br>');
 				const enteredEnergyLimit = Number(await popup.confirm(
-					`${I18N('GEAR_FARM_PLAN', { hero: this.getHeroName(hero.id), slots: missingSlots.length })}<br><br>${details}${vipLevel === 0 ? `<br><br>${I18N('GEAR_FARM_NORMAL_MODE')}` : ''}${unavailable.length ? `<br><br>${I18N('GEAR_FARM_UNAVAILABLE', { count: unavailable.length })}` : ''}`,
+					`${I18N('GEAR_FARM_PLAN', { hero: this.getHeroName(hero.id), slots: missingSlots.length })}${vipLevel === 0 ? `<br><br>${I18N('GEAR_FARM_NORMAL_MODE')}` : ''}${unavailable.length ? `<br><br>${I18N('GEAR_FARM_UNAVAILABLE', { count: unavailable.length })}` : ''}`,
 					[
 						{ msg: I18N('BTN_CANCEL'), result: false, isCancel: true, color: 'red' },
 						{ msg: I18N('BTN_RUN'), isInput: true, default: 100, color: 'green' },
@@ -14249,16 +14272,70 @@
 				const liveUserInfo = await Caller.send('userGetInfo');
 				const energyLimit = Math.min(enteredEnergyLimit, this.getStaminaAmount(liveUserInfo));
 
-				let energyLeft = energyLimit;
-				const plannedRaids = raids.reduce((total, raid) => {
-					const times = vipLevel === 0
-						? Math.min(raid.times, Math.floor(energyLeft / raid.cost))
-						: Math.min(raid.times, Math.floor(energyLeft / (raid.cost * raidBatchSize)) * raidBatchSize);
-					energyLeft -= times * raid.cost;
-					return total + times;
-				}, 0);
-				if (!plannedRaids) {
-					await popup.confirm(I18N('GEAR_FARM_NOT_ENOUGH_ENERGY'));
+				if (vipLevel > 0) {
+					let currentInventory = inventory;
+					let currentMissions = missions;
+					let spent = 0;
+					let raidsDone = 0;
+					const confirmPlan = async (raids) => {
+						const plan = this.planRaids(raids, energyLimit - spent);
+						if (!plan.length) {
+							return [];
+						}
+						const details = plan.map(({ target, id, times, cost }) => I18N('GEAR_FARM_MISSION', { mission: this.getFarmLocation(target, id), times, stamina: times * cost })).join('<br>');
+						const confirmed = await popup.confirm(
+							`${I18N('GEAR_FARM_PLAN', { hero: this.getHeroName(hero.id), slots: missingSlots.length })}<br><br>${details}`,
+							[
+								{ msg: I18N('BTN_CANCEL'), result: false, isCancel: true, color: 'red' },
+								{ msg: I18N('BTN_RUN'), result: true, color: 'green' },
+							],
+						);
+						return confirmed ? plan : null;
+					};
+					const runPlan = async (plan) => {
+						for (const raid of plan) {
+							let remaining = raid.times;
+							while (remaining > 0 && !this.stopRequested) {
+								const batch = Math.min(raid.batchSize, remaining);
+								this.setFarmProgress(I18N('GEAR_FARM_PROGRESS', {
+									mission: this.getFarmLocation(raid.target, raid.id),
+									done: raidsDone + batch,
+									total: raidsDone + remaining,
+									stamina: spent + batch * raid.cost,
+									limit: energyLimit,
+								}));
+								await Caller.send({ name: 'missionRaid', args: { id: raid.id, times: batch } });
+								remaining -= batch;
+								spent += batch * raid.cost;
+								raidsDone += batch;
+							}
+							if (this.stopRequested) {
+								break;
+							}
+						}
+					};
+
+					const heroicPlan = await confirmPlan(this.getHeroicRaids(targets, currentMissions));
+					if (heroicPlan === null) {
+						return;
+					}
+					await runPlan(heroicPlan);
+					if (!this.stopRequested) {
+						[currentInventory, currentMissions] = await Caller.send(['inventoryGet', 'missionGetAll']);
+						const remainingTargets = this.buildMissingItems(missingSlots, currentInventory);
+						if (!this.getHeroicRaids(remainingTargets, currentMissions).length) {
+							const normalPlan = await confirmPlan(this.getNormalRaids(remainingTargets, currentMissions, raidBatchSize));
+							if (normalPlan === null) {
+								return;
+							}
+							await runPlan(normalPlan);
+						}
+					}
+					const crafted = this.stopRequested ? 0 : await this.craftGear(missingSlots);
+					if (!this.stopRequested && this.getAutoEquipHeroes()[hero.id]) {
+						await this.autoEquipHero(hero.id);
+					}
+					setProgress(I18N(this.stopRequested ? 'GEAR_FARM_STOPPED' : 'GEAR_FARM_DONE', { raids: raidsDone, stamina: spent, crafted }), true);
 					return;
 				}
 				if (vipLevel === 0) {
@@ -14302,38 +14379,6 @@
 					setProgress(I18N(this.stopRequested ? 'GEAR_FARM_STOPPED' : 'GEAR_FARM_DONE', { raids: runs, stamina: spent, crafted }), true);
 					return;
 				}
-				let spent = 0;
-				let raidsDone = 0;
-				for (const raid of raids) {
-					if (this.stopRequested) {
-						break;
-					}
-					const availableRaids = Math.floor((energyLimit - spent) / (raid.cost * raidBatchSize)) * raidBatchSize;
-					const times = Math.min(raid.times, availableRaids);
-					if (!times) {
-						break;
-					}
-					let remaining = times;
-					while (remaining > 0 && !this.stopRequested) {
-						const batch = raidBatchSize;
-						this.setFarmProgress(I18N('GEAR_FARM_PROGRESS', {
-							mission: this.getFarmLocation(raid.target, raid.id),
-							done: raidsDone + batch,
-							total: plannedRaids,
-							stamina: spent + batch * raid.cost,
-							limit: energyLimit,
-						}));
-						await Caller.send({ name: 'missionRaid', args: { id: raid.id, times: batch } });
-						remaining -= batch;
-						spent += batch * raid.cost;
-						raidsDone += batch;
-					}
-				}
-				const crafted = this.stopRequested ? 0 : await this.craftGear(missingSlots);
-				if (!this.stopRequested && this.getAutoEquipHeroes()[hero.id]) {
-					await this.autoEquipHero(hero.id);
-				}
-				setProgress(I18N(this.stopRequested ? 'GEAR_FARM_STOPPED' : 'GEAR_FARM_DONE', { raids: raidsDone, stamina: spent, crafted }), true);
 			} catch (error) {
 				console.error('Gear farm failed', error);
 				const details = String(error?.message ?? error).replace(/[&<>"']/g, (character) => ({
