@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HWrunner
 // @namespace    https://github.com/hw-scripts/runner
-// @version      1.0.9
+// @version      1.0.10
 // @description  Hero Wars autorunner
 // @description:en Hero Wars autorunner
 // @description:uk Автоматичний працівник для Hero Wars
@@ -13770,8 +13770,8 @@
 			const [allHeroes, inventory, missions] = await Caller.send(['heroGetAll', 'inventoryGet', 'missionGetAll']);
 			const heroes = Object.values(allHeroes)
 				.map((hero) => {
-					const missingSlots = this.getTierSlots(hero).filter(({ slotId }) => !this.isSlotEquipped(hero, slotId));
-					const targets = this.buildMissingItems(missingSlots, inventory);
+					const farmableSlots = this.getTierSlots(hero).filter(({ slotId, itemId }) => !this.isSlotEquipped(hero, slotId) && Number(hero.level) >= this.getGearHeroLevelRequirement(itemId));
+					const targets = this.buildMissingItems(farmableSlots, inventory);
 					return {
 						...hero,
 						disabled: !targets.length || !targets.some((target) => this.getMissionOptions(target, missions).length),
@@ -14249,8 +14249,8 @@
 					.filter((level) => Number(level.vipPoints) <= Number(userInfo.vipPoints))
 					.map((level) => Number(level.level) || 0));
 				const raidBatchSize = 10;
-				const missingSlots = this.getTierSlots(hero).filter(({ slotId }) => !this.isSlotEquipped(hero, slotId));
-				const targets = this.buildMissingItems(missingSlots, inventory);
+				const farmableSlots = this.getTierSlots(hero).filter(({ slotId, itemId }) => !this.isSlotEquipped(hero, slotId) && Number(hero.level) >= this.getGearHeroLevelRequirement(itemId));
+				const targets = this.buildMissingItems(farmableSlots, inventory);
 				const unavailable = targets.filter((target) => !this.getMissionOptions(target, missions).length);
 				if (unavailable.length === targets.length) {
 					const missingTargets = targets.map(({ type, itemId, amount }) => `${type}:${itemId} x${amount}`).join(', ');
@@ -14260,7 +14260,7 @@
 				}
 
 				const enteredEnergyLimit = Number(await popup.confirm(
-					`${I18N('GEAR_FARM_PLAN', { hero: this.getHeroName(hero.id), slots: missingSlots.length })}${vipLevel === 0 ? `<br><br>${I18N('GEAR_FARM_NORMAL_MODE')}` : ''}${unavailable.length ? `<br><br>${I18N('GEAR_FARM_UNAVAILABLE', { count: unavailable.length })}` : ''}`,
+					`${I18N('GEAR_FARM_PLAN', { hero: this.getHeroName(hero.id), slots: farmableSlots.length })}${vipLevel === 0 ? `<br><br>${I18N('GEAR_FARM_NORMAL_MODE')}` : ''}${unavailable.length ? `<br><br>${I18N('GEAR_FARM_UNAVAILABLE', { count: unavailable.length })}` : ''}`,
 					[
 						{ msg: I18N('BTN_CANCEL'), result: false, isCancel: true, color: 'red' },
 						{ msg: I18N('BTN_RUN'), isInput: true, default: 100, color: 'green' },
@@ -14284,7 +14284,7 @@
 						}
 						const details = plan.map(({ target, id, times, cost }) => I18N('GEAR_FARM_MISSION', { mission: this.getFarmLocation(target, id), times, stamina: times * cost })).join('<br>');
 						const confirmed = await popup.confirm(
-							`${I18N('GEAR_FARM_PLAN', { hero: this.getHeroName(hero.id), slots: missingSlots.length })}<br><br>${details}`,
+							`${I18N('GEAR_FARM_PLAN', { hero: this.getHeroName(hero.id), slots: farmableSlots.length })}<br><br>${details}`,
 							[
 								{ msg: I18N('BTN_CANCEL'), result: false, isCancel: true, color: 'red' },
 								{ msg: I18N('BTN_RUN'), result: true, color: 'green' },
@@ -14322,7 +14322,7 @@
 					await runPlan(heroicPlan);
 					if (!this.stopRequested) {
 						[currentInventory, currentMissions] = await Caller.send(['inventoryGet', 'missionGetAll']);
-						const remainingTargets = this.buildMissingItems(missingSlots, currentInventory);
+						const remainingTargets = this.buildMissingItems(farmableSlots, currentInventory);
 						if (!this.getHeroicRaids(remainingTargets, currentMissions).length) {
 							const normalPlan = await confirmPlan(this.getNormalRaids(remainingTargets, currentMissions, raidBatchSize));
 							if (normalPlan === null) {
@@ -14331,7 +14331,7 @@
 							await runPlan(normalPlan);
 						}
 					}
-					const crafted = this.stopRequested ? 0 : await this.craftGear(missingSlots);
+					const crafted = this.stopRequested ? 0 : await this.craftGear(farmableSlots);
 					if (!this.stopRequested && this.getAutoEquipHeroes()[hero.id]) {
 						await this.autoEquipHero(hero.id);
 					}
@@ -14344,7 +14344,7 @@
 					let spent = 0;
 					let runs = 0;
 					while (spent < energyLimit && !this.stopRequested) {
-						const missingItems = this.buildMissingItems(missingSlots, currentInventory);
+						const missingItems = this.buildMissingItems(farmableSlots, currentInventory);
 						if (!missingItems.length) {
 							break;
 						}
@@ -14372,7 +14372,7 @@
 						spent += mission.cost;
 						runs++;
 					}
-					const crafted = this.stopRequested ? 0 : await this.craftGear(missingSlots);
+					const crafted = this.stopRequested ? 0 : await this.craftGear(farmableSlots);
 					if (!this.stopRequested && this.getAutoEquipHeroes()[hero.id]) {
 						await this.autoEquipHero(hero.id);
 					}
