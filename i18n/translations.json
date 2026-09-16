@@ -349,6 +349,11 @@
                               "uk":  "Фарм спорядження зупинено: проходів {raids}, витрачено енергії {stamina}",
                               "ru":  "Фарм экипировки остановлен: проходов {raids}, потрачено энергии {stamina}"
                           },
+    "GEAR_FARM_STOPPING":  {
+                               "en":  "Stopping...",
+                               "uk":  "Зупиняюсь...",
+                               "ru":  "Останавливаюсь..."
+                           },
     "GEAR_FARM_CRAFTING":  {
                                "en":  "Crafting {item} x{amount}",
                                "uk":  "Створення: {item} x{amount}",
@@ -2108,5 +2113,10 @@
                             "en":  "Pause (ms)",
                             "uk":  "Пауза (мс)",
                             "ru":  "Пауза (мс)"
-                        }
+                        },
+    "GEAR_FARM_RELOAD_CONFIRM":  {
+                                     "en":  "Update data?",
+                                     "uk":  "\u041e\u043d\u043e\u0432\u0438\u0442\u0438 \u0434\u0430\u043d\u0456?",
+                                     "ru":  "\u041e\u0431\u043d\u043e\u0432\u0438\u0442\u044c \u0434\u0430\u043d\u043d\u044b\u0435?"
+                                 }
 }
