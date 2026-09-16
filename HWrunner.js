@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HWrunner
 // @namespace    https://github.com/hw-scripts/runner
-// @version      1.0.13
+// @version      1.0.14
 // @description  Hero Wars autorunner
 // @description:en Hero Wars autorunner
 // @description:uk Автоматичний працівник для Hero Wars
@@ -14237,6 +14237,10 @@
 			}
 		}
 
+		async waitForInventorySync() {
+			await new Promise((resolve) => setTimeout(resolve, 1000));
+		}
+
 		async start() {
 			if (GearFarmer.running) {
 				return;
@@ -14320,6 +14324,7 @@
 									limit: energyLimit,
 								}));
 								await Caller.send({ name: 'missionRaid', args: { id: raid.id, times: batch } });
+								await this.waitForInventorySync();
 								await this.refreshClientInventory();
 								remaining -= batch;
 								spent += batch * raid.cost;
@@ -14385,6 +14390,7 @@
 							() => this.requestStop(),
 							() => this.stopRequested,
 						);
+						await this.waitForInventorySync();
 						await this.refreshClientInventory();
 						[currentInventory, currentMissions] = await Caller.send(['inventoryGet', 'missionGetAll']);
 						spent += mission.cost;
