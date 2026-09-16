@@ -2093,5 +2093,20 @@
                               "en":  "Round {round}, Consecutive wins: {streak}",
                               "uk":  "Round {round}, Послідовних перемог: {streak}",
                               "ru":  "Раунд {round}, Побед подряд: {streak}"
-                          }
+                          },
+    "GEAR_FARM_AUTOMATIC":  {
+                                "en":  "Automatic farming",
+                                "uk":  "Автоматичний фармінг",
+                                "ru":  "Автоматический фарм"
+                            },
+    "GEAR_FARM_ENERGY_LIMIT":  {
+                                   "en":  "Energy limit",
+                                   "uk":  "Ліміт енергії",
+                                   "ru":  "Лимит энергии"
+                               },
+    "GEAR_FARM_PAUSE":  {
+                            "en":  "Pause (ms)",
+                            "uk":  "Пауза (мс)",
+                            "ru":  "Пауза (мс)"
+                        }
 }

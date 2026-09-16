@@ -417,5 +417,8 @@
     "PACK":  "Pack",
     "PACK_BANNER":  "Pack banner",
     "PACK_PET":  "Main pet",
-    "SEERGAME_PROGRESS":  "Round {round}, Consecutive wins: {streak}"
+    "SEERGAME_PROGRESS":  "Round {round}, Consecutive wins: {streak}",
+    "GEAR_FARM_AUTOMATIC":  "Automatic farming",
+    "GEAR_FARM_ENERGY_LIMIT":  "Energy limit",
+    "GEAR_FARM_PAUSE":  "Pause (ms)"
 }

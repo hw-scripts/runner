@@ -23,8 +23,7 @@ function Read-JsonMap([string]$path) {
 
 function Write-Json([string]$path, $value) {
     $json = $value | ConvertTo-Json -Depth 4
-    # Windows PowerShell escapes harmless HTML characters by default.
-    $json = $json.Replace('\u003c', '<').Replace('\u003e', '>').Replace('\u0026', '&')
+    $json = $json.Replace('\u0027', "'")
     [System.IO.File]::WriteAllText($path, "$json`r`n", $utf8)
 }
 

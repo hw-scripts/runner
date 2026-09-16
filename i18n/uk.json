@@ -417,5 +417,8 @@
     "PACK":  "Пак",
     "PACK_BANNER":  "Стяг паку",
     "PACK_PET":  "Головний пет",
-    "SEERGAME_PROGRESS":  "Round {round}, Послідовних перемог: {streak}"
+    "SEERGAME_PROGRESS":  "Round {round}, Послідовних перемог: {streak}",
+    "GEAR_FARM_AUTOMATIC":  "Автоматичний фармінг",
+    "GEAR_FARM_ENERGY_LIMIT":  "Ліміт енергії",
+    "GEAR_FARM_PAUSE":  "Пауза (мс)"
 }
