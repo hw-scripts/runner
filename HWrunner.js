@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HWrunner
 // @namespace    https://github.com/hw-scripts/runner
-// @version      1.0.11
+// @version      1.0.12
 // @description  Hero Wars autorunner
 // @description:en Hero Wars autorunner
 // @description:uk Автоматичний працівник для Hero Wars
@@ -14229,6 +14229,14 @@
 			return plan;
 		}
 
+		async refreshClientInventory() {
+			try {
+				await cheats.refreshInventory();
+			} catch (error) {
+				console.warn('Unable to refresh inventory after gear farming', error);
+			}
+		}
+
 		async start() {
 			if (GearFarmer.running) {
 				return;
@@ -14342,6 +14350,7 @@
 					if (!this.stopRequested && this.getAutoEquipHeroes()[hero.id]) {
 						await this.autoEquipHero(hero.id);
 					}
+					await this.refreshClientInventory();
 					setProgress(I18N(this.stopRequested ? 'GEAR_FARM_STOPPED' : 'GEAR_FARM_DONE', { raids: raidsDone, stamina: spent, crafted }), true);
 					return;
 				}
@@ -14383,6 +14392,7 @@
 					if (!this.stopRequested && this.getAutoEquipHeroes()[hero.id]) {
 						await this.autoEquipHero(hero.id);
 					}
+					await this.refreshClientInventory();
 					setProgress(I18N(this.stopRequested ? 'GEAR_FARM_STOPPED' : 'GEAR_FARM_DONE', { raids: runs, stamina: spent, crafted }), true);
 					return;
 				}
