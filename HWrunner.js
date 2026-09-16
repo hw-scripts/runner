@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HWrunner
 // @namespace    https://github.com/hw-scripts/runner
-// @version      1.0.12
+// @version      1.0.13
 // @description  Hero Wars autorunner
 // @description:en Hero Wars autorunner
 // @description:uk Автоматичний працівник для Hero Wars
@@ -14320,6 +14320,7 @@
 									limit: energyLimit,
 								}));
 								await Caller.send({ name: 'missionRaid', args: { id: raid.id, times: batch } });
+								await this.refreshClientInventory();
 								remaining -= batch;
 								spent += batch * raid.cost;
 								raidsDone += batch;
@@ -14384,6 +14385,7 @@
 							() => this.requestStop(),
 							() => this.stopRequested,
 						);
+						await this.refreshClientInventory();
 						[currentInventory, currentMissions] = await Caller.send(['inventoryGet', 'missionGetAll']);
 						spent += mission.cost;
 						runs++;
