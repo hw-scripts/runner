@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HWrunner
 // @namespace    https://github.com/hw-scripts/runner
-// @version      1.0.31
+// @version      1.0.33
 // @description  Hero Wars autorunner
 // @description:en Hero Wars autorunner
 // @description:uk Автоматичний працівник для Hero Wars
@@ -5039,21 +5039,29 @@
 				.flatMap((block) => {
 					const text = String(block?.data?.text ?? '');
 					const document = new DOMParser().parseFromString(text, 'text/html');
-					return [...document.querySelectorAll('a[href]')].map((link) => link.href);
+					return [...document.querySelectorAll('a[href]')].map((link) => ({
+						url: link.href,
+						context: document.body.textContent || '',
+					}));
 				});
 		};
 		const resolveGiftId = async (link) => {
-			const directGiftId = readGiftId(link);
-			if (directGiftId) {
-				return directGiftId;
-			}
-			const response = await requestText(link);
-			return readGiftId(response.finalUrl);
-		};
-		const isPossibleBonusLink = (link) => {
 			try {
-				const url = new URL(link);
-				return url.searchParams.has('gift_id') || url.hostname === 'herowars.me';
+				const directGiftId = readGiftId(link);
+				if (directGiftId) {
+					return directGiftId;
+				}
+				const response = await requestText(link);
+				return readGiftId(response.finalUrl);
+			} catch (error) {
+				console.warn('Unable to resolve Community bonus link', link, error);
+				return '';
+			}
+		};
+		const isPossibleBonusLink = ({ url, context }) => {
+			try {
+				const link = new URL(url);
+				return link.searchParams.has('gift_id') || (link.hostname === 'herowars.me' && /bonus|gift|energy|claim|free box/i.test(context));
 			} catch (error) {
 				return false;
 			}
@@ -5062,11 +5070,11 @@
 		(async () => {
 			const processedIds = loadProcessedIds();
 			const giftIds = [];
-			for (const link of (await getCommunityLinks()).filter(isPossibleBonusLink)) {
+			for (const { url } of (await getCommunityLinks()).filter(isPossibleBonusLink)) {
 				if (giftIds.length >= 10) {
 					break;
 				}
-				const giftId = await resolveGiftId(link);
+				const giftId = await resolveGiftId(url);
 				if (giftId && !processedIds.has(giftId) && !giftIds.includes(giftId)) {
 					giftIds.push(giftId);
 				}
@@ -5097,7 +5105,7 @@
 			});
 		})().catch((error) => {
 			console.error('Community bonus collection failed', error);
-			setProgress(`${I18N('GIFTS')}: Error`, true);
+			setProgress(`${I18N('GIFTS')}: ${error.message || 'Error'}`, true);
 		});
 	}
 
