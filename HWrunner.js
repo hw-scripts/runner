@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HWrunner
 // @namespace    https://github.com/hw-scripts/runner
-// @version      1.0.28
+// @version      1.0.31
 // @description  Hero Wars autorunner
 // @description:en Hero Wars autorunner
 // @description:uk Автоматичний працівник для Hero Wars
@@ -17,6 +17,8 @@
 // @grant			GM_xmlhttpRequest
 // @connect			tools.oaslo.com
 // @connect			raw.githubusercontent.com
+// @connect			community.hero-wars.com
+// @connect			herowars.me
 // ==/UserScript==
 
 (function () {
@@ -5006,69 +5008,97 @@
 	 *
 	 */
 	function getAutoGifts() {
-		// bmF0cmlidS5vcmc=
-		let valName = 'giftSendIds_' + userInfo.id;
-
-		if (!localStorage['clearGift' + userInfo.id]) {
-			localStorage[valName] = '';
-			localStorage['clearGift' + userInfo.id] = '+';
-		}
-
-		if (!localStorage[valName]) {
-			localStorage[valName] = '';
-		}
-
-		const giftsAPI = new ZingerYWebsiteAPI('getGifts.php', arguments);
-		/**
-		 * Submit a request to receive gift codes
-		 *
-		 */
-		giftsAPI
-			.request()
-			.then((data) => {
-				let freebieCheckCalls = {
-					calls: [],
-				};
-				data.forEach((giftId, n) => {
-					if (localStorage[valName].includes(giftId)) return;
-					freebieCheckCalls.calls.push({
-						name: 'registration',
-						args: {
-							user: { referrer: {} },
-							giftId,
-						},
-						context: {
-							actionTs: Math.floor(performance.now()),
-							cookie: window?.NXAppInfo?.session_id || null,
-						},
-						ident: giftId,
-					});
-				});
-
-				if (!freebieCheckCalls.calls.length) {
-					return;
-				}
-
-				send(freebieCheckCalls, (e) => {
-					let countGetGifts = 0;
-					const gifts = [];
-					for (check of e.results) {
-						gifts.push(check.ident);
-						if (check.result.response != null) {
-							countGetGifts++;
-						}
-					}
-					const saveGifts = localStorage[valName].split(';');
-					localStorage[valName] = [...saveGifts, ...gifts].slice(-50).join(';');
-					console.log(`${I18N('GIFTS')}: ${countGetGifts}`);
-					setProgress(`${I18N('GIFTS')}: ${countGetGifts}`, true);
-				});
-			})
-			.catch((error) => {
-				console.error(error);
-				const reason = error.message == 'Access denied' ? error.message : 'Error';
-				setProgress(`${I18N('GIFTS')}: ${reason}`, true);
+		const storageKey = `communityBonusGiftIds_${userInfo.id}`;
+		const requestText = (url) => new Promise((resolve, reject) => {
+			GM_xmlhttpRequest({
+				method: 'GET',
+				url,
+				onload: (response) => response.status >= 200 && response.status < 300 ? resolve(response) : reject(new Error(`HTTP ${response.status}`)),
+				onerror: () => reject(new Error('Request failed')),
 			});
+		});
+		const readGiftId = (url) => {
+			try {
+				return new URL(url).searchParams.get('gift_id') || '';
+			} catch (error) {
+				return '';
+			}
+		};
+		const loadProcessedIds = () => {
+			try {
+				const stored = JSON.parse(localStorage.getItem(storageKey) || '[]');
+				return new Set(Array.isArray(stored) ? stored.map(String) : []);
+			} catch (error) {
+				return new Set();
+			}
+		};
+		const getCommunityLinks = async () => {
+			const response = await requestText('https://community.hero-wars.com/api/posts/published?page=1');
+			const posts = JSON.parse(response.responseText).data ?? [];
+			return posts.flatMap((post) => post.attributes?.body ?? [])
+				.flatMap((block) => {
+					const text = String(block?.data?.text ?? '');
+					const document = new DOMParser().parseFromString(text, 'text/html');
+					return [...document.querySelectorAll('a[href]')].map((link) => link.href);
+				});
+		};
+		const resolveGiftId = async (link) => {
+			const directGiftId = readGiftId(link);
+			if (directGiftId) {
+				return directGiftId;
+			}
+			const response = await requestText(link);
+			return readGiftId(response.finalUrl);
+		};
+		const isPossibleBonusLink = (link) => {
+			try {
+				const url = new URL(link);
+				return url.searchParams.has('gift_id') || url.hostname === 'herowars.me';
+			} catch (error) {
+				return false;
+			}
+		};
+
+		(async () => {
+			const processedIds = loadProcessedIds();
+			const giftIds = [];
+			for (const link of (await getCommunityLinks()).filter(isPossibleBonusLink)) {
+				if (giftIds.length >= 10) {
+					break;
+				}
+				const giftId = await resolveGiftId(link);
+				if (giftId && !processedIds.has(giftId) && !giftIds.includes(giftId)) {
+					giftIds.push(giftId);
+				}
+			}
+			if (!giftIds.length) {
+				return;
+			}
+			const calls = giftIds.map((giftId) => ({
+				name: 'registration',
+				args: { user: { referrer: {} }, giftId },
+				context: {
+					actionTs: Math.floor(performance.now()),
+					cookie: window?.NXAppInfo?.session_id || null,
+				},
+				ident: giftId,
+			}));
+			send({ calls }, (response) => {
+				let claimed = 0;
+				for (const result of response.results ?? []) {
+					processedIds.add(String(result.ident));
+					if (result.result?.response != null) {
+						claimed++;
+					}
+				}
+				localStorage.setItem(storageKey, JSON.stringify([...processedIds].slice(-200)));
+				console.log(`${I18N('GIFTS')}: ${claimed}/${giftIds.length}`);
+				setProgress(`${I18N('GIFTS')}: ${claimed}/${giftIds.length}`, true);
+			});
+		})().catch((error) => {
+			console.error('Community bonus collection failed', error);
+			setProgress(`${I18N('GIFTS')}: Error`, true);
+		});
 	}
 
 	/**
