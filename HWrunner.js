@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HWrunner
 // @namespace    https://github.com/hw-scripts/runner
-// @version      1.0.14
+// @version      1.0.27
 // @description  Hero Wars autorunner
 // @description:en Hero Wars autorunner
 // @description:uk Автоматичний працівник для Hero Wars
@@ -7573,18 +7573,42 @@
 				if (!buttOpt) {
 					buttOpt = [{ msg: 'Ok', result: true, isInput: false, color: 'green' }];
 				}
+				let completed = false;
+				let countdown = null;
+				const finish = (result) => {
+					if (completed) {
+						return;
+					}
+					completed = true;
+					clearInterval(countdown);
+					this.dialogPromice = null;
+					complete(result);
+					popup.hide();
+				};
 				for (const checkBox of checkBoxes) {
 					this.addCheckBox(checkBox);
 				}
 				for (let butt of buttOpt) {
 					this.addButton(butt, (result) => {
 						result = result || butt.result;
-						complete(result);
-						popup.hide();
+						finish(result);
 					});
 					if (butt.isCancel) {
-						this.dialogPromice = { func: complete, result: butt.result };
+						this.dialogPromice = { func: finish, result: butt.result };
 					}
+				}
+				const autoButton = buttOpt.find((butt) => Number.isFinite(Number(butt.countdown)) && Number(butt.countdown) > 0);
+				if (autoButton) {
+					let remaining = Math.ceil(Number(autoButton.countdown));
+					const renderCountdown = () => this.setMsgText(`${msg}<br><small>${I18N('TIMER')}: ${remaining}</small>`);
+					renderCountdown();
+					countdown = setInterval(() => {
+						remaining--;
+						renderCountdown();
+						if (remaining <= 0) {
+							finish(autoButton.result);
+						}
+					}, 1000);
 				}
 				this.show();
 			});
@@ -13738,6 +13762,40 @@
 
 	this.HWHClasses.ExecuteCompany = ExecuteCompany;
 
+	function ensureGearFarmStyles() {
+		if (document.getElementById('HWrunnerGearFarmStyles')) {
+			return;
+		}
+		const style = document.createElement('style');
+		style.id = 'HWrunnerGearFarmStyles';
+		style.textContent = `
+			.GearFarm_popup { width: min(980px, calc(100vw - 64px)); max-width: none; max-height: min(720px, calc(100vh - 48px)); padding: 18px; }
+			.GearFarm_popup .PopUp_msgText { display: none; }
+			.GearFarm_board { min-height: 500px; padding: 18px; border: 2px solid #8e5a21; background: #160b06ef; box-shadow: inset 0 0 0 2px #3d2110; }
+			.GearFarm_controls { display: flex; justify-content: center; flex-wrap: wrap; gap: 18px; margin: 0 0 18px; padding-bottom: 16px; border-bottom: 2px solid #6e401b; }
+			.GearFarm_field { display: grid; grid-template-columns: auto 120px; align-items: center; gap: 8px; color: #fde5b6; font: 700 18px sans-serif; text-shadow: 0 2px 2px #000; }
+			.GearFarm_field input { width: 100%; box-sizing: border-box; border: 2px solid #a77332; background: #170c06; color: #fde5b6; font: 700 18px sans-serif; line-height: 30px; text-align: center; }
+			.GearFarm_run { min-width: 120px; align-self: center; }
+			.GearFarm_title { margin: 0 0 18px; text-align: center; color: #fde5b6; font: 700 28px sans-serif; text-shadow: 0 2px 2px #000; }
+			.GearFarm_grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; max-height: 480px; padding: 4px; overflow-y: auto; }
+			.GearFarm_slot { position: relative; aspect-ratio: 1; min-width: 0; padding: 0; border: 3px solid #6e401b; background: #120906; box-shadow: inset 0 0 0 2px #a77332, 0 2px 3px #000; }
+			.GearFarm_slot.GearFarm_selected { border-color: #88cb13; box-shadow: inset 0 0 0 2px #d7ea45, 0 0 8px #5ca615; }
+			.GearFarm_slot.GearFarm_disabled { opacity: .35; }
+			.GearFarm_slot img { width: 100%; height: 100%; object-fit: contain; display: block; }
+			.GearFarm_heroLevel { position: absolute; z-index: 1; top: -10px; left: 50%; min-width: 28px; padding: 1px 5px; transform: translateX(-50%); border: 2px solid #b98a3b; border-radius: 4px; background: #1a120c; box-shadow: 0 1px 2px #000; color: #f6e8c2; font: 700 18px sans-serif; line-height: 20px; text-align: center; text-shadow: 0 1px 1px #000; }
+			.GearFarm_priority { position: absolute; z-index: 1; left: -6px; bottom: -6px; min-width: 27px; height: 27px; display: grid; place-items: center; border: 2px solid #c89142; border-radius: 50%; background: #170c06; box-shadow: 0 1px 2px #000; color: #f8dc9a; font: 700 17px sans-serif; text-shadow: 0 1px 1px #000; }
+			.GearFarm_autoEquip { position: absolute; z-index: 1; right: -5px; bottom: -5px; width: 22px; height: 22px; box-sizing: border-box; margin: 0; appearance: none; border: 2px solid #c89142; background: #170c06; box-shadow: 0 1px 2px #000; cursor: pointer; }
+			.GearFarm_autoEquip:checked::after { content: '✓'; display: block; color: #88cb13; font: 700 23px sans-serif; line-height: 16px; text-align: center; text-shadow: 0 1px 1px #000; }
+			@media (max-width: 760px) {
+				.GearFarm_popup { width: calc(100vw - 24px); padding: 12px; }
+				.GearFarm_board { min-height: 0; padding: 12px; }
+				.GearFarm_grid { grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 8px; }
+				.GearFarm_field { grid-template-columns: 1fr; gap: 4px; text-align: center; }
+			}
+		`;
+		document.head.append(style);
+	}
+
 	/** Plans raids for the missing gear of one hero without spending premium currency. */
 	class GearFarmer {
 		getHeroName(heroId) {
@@ -13774,7 +13832,8 @@
 		}
 
 		async configurePriorities() {
-			const [allHeroes, inventory, missions] = await Caller.send(['heroGetAll', 'inventoryGet', 'missionGetAll']);
+			ensureGearFarmStyles();
+			const [allHeroes, inventory, missions, userInfo] = await Caller.send(['heroGetAll', 'inventoryGet', 'missionGetAll', 'userGetInfo']);
 			const heroes = Object.values(allHeroes)
 				.map((hero) => {
 					const farmableSlots = this.getTierSlots(hero).filter(({ slotId, itemId }) => !this.isSlotEquipped(hero, slotId) && Number(hero.level) >= this.getGearHeroLevelRequirement(itemId));
@@ -13788,12 +13847,63 @@
 			const icons = Object.fromEntries(await Promise.all(heroes.map(async (hero) => [hero.id, await this.getHeroIcon(hero.id)])));
 			let order = this.getPriorityOrder().filter((heroId) => heroes.some((hero) => Number(hero.id) === heroId && !hero.disabled));
 			const autoEquipHeroes = this.getAutoEquipHeroes();
+			const stamina = this.getStaminaAmount(userInfo);
 			return popup.customPopup((complete) => {
-				popup.setMsgText(I18N('GEAR_FARM'));
+				let closed = false;
+				const close = (result = false) => {
+					if (closed) {
+						return;
+					}
+					closed = true;
+					popup.popUp.classList.remove('GearFarm_popup');
+					popup.hide();
+					complete(result);
+				};
+				popup.popUp.classList.add('GearFarm_popup');
+				popup.setMsgText('');
+				const board = document.createElement('section');
+				board.className = 'GearFarm_board';
+				const controls = document.createElement('div');
+				controls.className = 'GearFarm_controls';
+				const createNumberField = (label, value, max) => {
+					const field = document.createElement('label');
+					field.className = 'GearFarm_field';
+					const labelText = document.createElement('span');
+					labelText.textContent = label;
+					const input = document.createElement('input');
+					input.type = 'number';
+					input.min = '0';
+					input.max = String(max);
+					input.value = String(value);
+					field.append(labelText, input);
+					return { field, input };
+				};
+				const energyField = createNumberField(I18N('GEAR_FARM_ENERGY_LIMIT'), stamina, stamina);
+				const pauseField = createNumberField(I18N('GEAR_FARM_PAUSE'), 0, 5000);
+				controls.append(
+					energyField.field,
+					pauseField.field,
+				);
+				const run = document.createElement('div');
+				run.className = 'PopUp_btnGap green GearFarm_run';
+				const runText = document.createElement('div');
+				runText.className = 'PopUp_btnPlate';
+				runText.textContent = I18N('BTN_RUN');
+				run.append(runText);
+				run.addEventListener('click', () => {
+					const energyLimit = Math.min(stamina, Math.max(0, Number.parseInt(energyField.input.value, 10) || 0));
+					const pauseMs = Math.min(5000, Math.max(0, Number.parseInt(pauseField.input.value, 10) || 0));
+					setSaveVal('gearFarmHeroPriority', order);
+					setSaveVal('gearFarmHeroAutoEquip', autoEquipHeroes);
+					setSaveVal('gearFarmHeroPriorityConfigured', true);
+					close({ priorityOrder: order, energyLimit, pauseMs });
+				});
+				controls.append(run);
+				const title = document.createElement('h2');
+				title.className = 'GearFarm_title';
+				title.textContent = I18N('GEAR_FARM_AUTOMATIC');
 				const grid = document.createElement('div');
-				grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:6px;padding:12px 4px;max-width:520px';
-				const footer = document.createElement('div');
-				footer.style.cssText = 'display:flex;gap:6px;padding:8px 4px;justify-content:center';
+				grid.className = 'GearFarm_grid';
 				const render = () => {
 					grid.innerHTML = '';
 					heroes.forEach((hero) => {
@@ -13801,30 +13911,33 @@
 						const priority = order.indexOf(heroId);
 						const cell = document.createElement('button');
 						cell.type = 'button';
-						cell.title = this.getHeroName(heroId);
 						cell.disabled = hero.disabled;
-						cell.style.cssText = `position:relative;height:52px;border:1px solid ${priority >= 0 ? '#88cb13' : '#cf9250'};background:#170d07;cursor:${hero.disabled ? 'not-allowed' : 'pointer'};opacity:${hero.disabled ? '.3' : '1'};padding:2px`;
+						cell.className = `GearFarm_slot${priority >= 0 ? ' GearFarm_selected' : ''}${hero.disabled ? ' GearFarm_disabled' : ''}`;
+						cell.title = this.getHeroName(heroId);
 						if (icons[heroId]) {
 							const image = document.createElement('img');
 							image.src = icons[heroId];
 							image.alt = this.getHeroName(heroId);
-							image.style.cssText = 'width:100%;height:100%;object-fit:contain';
 							cell.append(image);
 						} else {
 							cell.textContent = this.getHeroName(heroId).slice(0, 2);
 						}
+						const level = document.createElement('span');
+						level.className = 'GearFarm_heroLevel';
+						level.textContent = hero.level;
+						cell.append(level);
 						if (priority >= 0) {
 							const badge = document.createElement('span');
+							badge.className = 'GearFarm_priority';
 							badge.textContent = priority + 1;
-							badge.style.cssText = 'position:absolute;right:-3px;top:-5px;min-width:16px;height:16px;border-radius:9px;background:#88cb13;color:#170d07;font-weight:bold;font-size:12px;line-height:16px';
 							cell.append(badge);
 						}
 						const autoEquip = document.createElement('input');
 						autoEquip.type = 'checkbox';
 						autoEquip.checked = Boolean(autoEquipHeroes[heroId]);
 						autoEquip.disabled = hero.disabled;
+						autoEquip.className = 'GearFarm_autoEquip';
 						autoEquip.title = I18N('GEAR_FARM_AUTO_EQUIP_TITLE');
-						autoEquip.style.cssText = 'position:absolute;left:3px;bottom:3px;margin:0;width:15px;height:15px;accent-color:#88cb13;cursor:pointer';
 						autoEquip.addEventListener('click', (event) => event.stopPropagation());
 						autoEquip.addEventListener('change', () => {
 							if (autoEquip.checked) {
@@ -13843,29 +13956,9 @@
 						grid.append(cell);
 					});
 				};
-				const clear = document.createElement('button');
-				clear.textContent = I18N('BTN_CLEAR');
-				clear.addEventListener('click', () => {
-					order = [];
-					render();
-				});
-				const save = document.createElement('button');
-				save.textContent = I18N('BTN_SAVE');
-				save.addEventListener('click', () => {
-					setSaveVal('gearFarmHeroPriority', order);
-					setSaveVal('gearFarmHeroAutoEquip', autoEquipHeroes);
-					setSaveVal('gearFarmHeroPriorityConfigured', true);
-					popup.hide();
-					complete(order);
-				});
-				const cancel = document.createElement('button');
-				cancel.textContent = I18N('BTN_CANCEL');
-				cancel.addEventListener('click', () => {
-					popup.hide();
-					complete(false);
-				});
-				footer.append(clear, cancel, save);
-				popup.custom.append(grid, footer);
+				board.append(controls, title, grid);
+				popup.custom.append(board);
+				popup.addButton({ isClose: true, result: false }, close);
 				render();
 				popup.show();
 			});
@@ -13975,6 +14068,57 @@
 			return Number(inventory?.[type]?.[itemId]) || 0;
 		}
 
+		changeInventoryAmount(inventory, type, itemId, delta) {
+			inventory[type] ??= {};
+			inventory[type][itemId] = Math.max(0, this.getInventoryAmount(inventory, type, itemId) + delta);
+		}
+
+		getRaidRewardBundles(response, inventory) {
+			const knownTypes = new Set(Object.keys(inventory ?? {}));
+			const isRewardBundle = (candidate) => candidate && typeof candidate === 'object' && !Array.isArray(candidate)
+				&& Object.entries(candidate).some(([type, entries]) => knownTypes.has(type) && entries && typeof entries === 'object' && !Array.isArray(entries));
+			const collect = (candidate) => {
+				if (!candidate || typeof candidate !== 'object') {
+					return [];
+				}
+				if (Array.isArray(candidate)) {
+					return candidate.flatMap(collect);
+				}
+				if (isRewardBundle(candidate)) {
+					return [candidate];
+				}
+				return Object.values(candidate).flatMap(collect);
+			};
+			return collect(response);
+		}
+
+		applyRaidRewards(inventory, response) {
+			for (const reward of this.getRaidRewardBundles(response, inventory)) {
+				for (const [type, entries] of Object.entries(reward)) {
+					if (!entries || typeof entries !== 'object' || Array.isArray(entries)) {
+						continue;
+					}
+					inventory[type] ??= {};
+					for (const [itemId, amount] of Object.entries(entries)) {
+						const received = Number(amount) || 0;
+						if (received) {
+							inventory[type][itemId] = (Number(inventory[type][itemId]) || 0) + received;
+						}
+					}
+				}
+			}
+		}
+
+		applyRaidState(missions, userInfo, missionId, times, staminaCost) {
+			if (missions?.[missionId]) {
+				missions[missionId].triesSpent = (Number(missions[missionId].triesSpent) || 0) + times;
+			}
+			const stamina = Object.values(userInfo?.refillable ?? {}).find((entry) => Number(entry?.id) === 1);
+			if (stamina) {
+				stamina.amount = Math.max(0, (Number(stamina.amount) || 0) - staminaCost);
+			}
+		}
+
 		getStaminaAmount(userInfo) {
 			return Number(Object.values(userInfo?.refillable ?? {}).find((entry) => Number(entry?.id) === 1)?.amount) || 0;
 		}
@@ -13992,7 +14136,11 @@
 		}
 
 		setFarmProgress(message) {
-			setProgress(message, false, () => this.requestStop());
+			this.farmProgress = message;
+			setProgress(message, false, () => {
+				this.requestStop();
+				setProgress(`${message}<br>${I18N('GEAR_FARM_STOPPING')}`, false);
+			});
 		}
 
 		async autoEquipHero(heroId) {
@@ -14229,16 +14377,135 @@
 			return plan;
 		}
 
-		async refreshClientInventory() {
+		getFarmPath(path) {
+			return path.map(({ type, itemId }) => this.getItemName(type, itemId)).join(' -> ');
+		}
+
+		getFarmProgress(heroName, path, missionId) {
+			return `${heroName}: ${this.getFarmPath(path)}<br>${this.getMissionName(missionId)}`;
+		}
+
+		getCraftStep(type, itemId, amount, inventory, userInfo, path, parents = new Set()) {
+			if (this.getInventoryAmount(inventory, type, itemId) >= amount) {
+				return null;
+			}
+			const key = `${type}:${itemId}`;
+			if (parents.has(key) || (type !== 'gear' && type !== 'scroll')) {
+				return null;
+			}
+			const nextParents = new Set(parents).add(key);
+			const components = this.getRecipeComponents(type, itemId);
+			if (components.length) {
+				for (const component of components) {
+					if (this.getInventoryAmount(inventory, component.type, component.itemId) < component.amount) {
+						return this.getCraftStep(
+							component.type,
+							component.itemId,
+							component.amount,
+							inventory,
+							userInfo,
+							[...path, { type: component.type, itemId: component.itemId }],
+							nextParents,
+						);
+					}
+				}
+				if (Number(userInfo.gold) >= this.getCraftGoldCost(type, itemId)) {
+					return { type, itemId, method: 'recipe', path };
+				}
+				return null;
+			}
+			const fragmentCount = Number(this.getItemData(type, itemId).fragmentMergeCost?.fragmentCount) || 0;
+			const fragmentType = type === 'scroll' ? 'fragmentScroll' : 'fragmentGear';
+			if (fragmentCount > 0 && this.getInventoryAmount(inventory, fragmentType, itemId) >= fragmentCount && Number(userInfo.gold) >= this.getCraftGoldCost(type, itemId)) {
+				return { type, itemId, method: 'fragments', path };
+			}
+			return null;
+		}
+
+		getFarmTarget(type, itemId, amount, inventory, path, parents = new Set()) {
+			if (this.getInventoryAmount(inventory, type, itemId) >= amount) {
+				return null;
+			}
+			const key = `${type}:${itemId}`;
+			if (parents.has(key)) {
+				return null;
+			}
+			const nextParents = new Set(parents).add(key);
+			const components = this.getRecipeComponents(type, itemId);
+			if (components.length) {
+				for (const component of components) {
+					if (this.getInventoryAmount(inventory, component.type, component.itemId) < component.amount) {
+						return this.getFarmTarget(
+							component.type,
+							component.itemId,
+							component.amount,
+							inventory,
+							[...path, { type: component.type, itemId: component.itemId }],
+							nextParents,
+						);
+					}
+				}
+				return null;
+			}
+			const fragmentCount = Number(this.getItemData(type, itemId).fragmentMergeCost?.fragmentCount) || 0;
+			if (fragmentCount > 0 && (type === 'gear' || type === 'scroll')) {
+				const fragmentType = type === 'scroll' ? 'fragmentScroll' : 'fragmentGear';
+				return {
+					target: { type: fragmentType, itemId, amount: fragmentCount },
+					path: [...path, { type: fragmentType, itemId }],
+				};
+			}
+			return { target: { type, itemId, amount }, path };
+		}
+
+		applyCraftState(step, inventory, userInfo) {
+			if (step.method === 'recipe') {
+				for (const component of this.getRecipeComponents(step.type, step.itemId)) {
+					this.changeInventoryAmount(inventory, component.type, component.itemId, -component.amount);
+				}
+			} else {
+				const fragmentType = step.type === 'scroll' ? 'fragmentScroll' : 'fragmentGear';
+				const fragmentCount = Number(this.getItemData(step.type, step.itemId).fragmentMergeCost?.fragmentCount) || 0;
+				this.changeInventoryAmount(inventory, fragmentType, step.itemId, -fragmentCount);
+			}
+			this.changeInventoryAmount(inventory, step.type, step.itemId, 1);
+			userInfo.gold = Math.max(0, (Number(userInfo.gold) || 0) - this.getCraftGoldCost(step.type, step.itemId));
+		}
+
+		async craftStep(step, heroName, inventory, userInfo) {
+			this.setFarmProgress(`${heroName}: ${this.getFarmPath(step.path)}<br>${I18N('GEAR_FARM_CRAFTING', { item: this.getItemName(step.type, step.itemId), amount: 1 })}`);
+			if (step.method === 'recipe') {
+				await Caller.send({ name: 'inventoryCraftRecipe', args: { type: step.type, libId: step.itemId, amount: 1 } });
+			} else {
+				await Caller.send({ name: 'inventoryCraftFragments', args: { type: step.type, libId: step.itemId, amount: 1 } });
+			}
+			this.applyCraftState(step, inventory, userInfo);
+			await this.refreshClientInventory(inventory);
+		}
+
+		async refreshClientInventory(inventory = null) {
 			try {
-				await cheats.refreshInventory();
+				if (inventory) {
+					cheats.updateInventory(inventory);
+				} else {
+					await cheats.refreshInventory();
+				}
 			} catch (error) {
 				console.warn('Unable to refresh inventory after gear farming', error);
 			}
 		}
 
-		async waitForInventorySync() {
-			await new Promise((resolve) => setTimeout(resolve, 1000));
+		async waitForInventorySync(progress) {
+			const delay = Math.max(0, Number(this.pauseMs) || 0);
+			if (!delay) {
+				return;
+			}
+			const stopAt = Date.now() + delay;
+			while (!this.stopRequested && Date.now() < stopAt) {
+				const remaining = Math.max(0, stopAt - Date.now());
+				this.setFarmProgress(`${progress}<br>${I18N('TIMER')}: ${(remaining / 1000).toFixed(1)}`);
+				await new Promise((resolve) => setTimeout(resolve, Math.min(100, remaining)));
+			}
 		}
 
 		async start() {
@@ -14247,163 +14514,119 @@
 			}
 			GearFarmer.running = true;
 			this.stopRequested = false;
+			let farmStarted = false;
 			try {
-				const priorityOrder = await this.configurePriorities();
-				if (!priorityOrder) {
+				const settings = await this.configurePriorities();
+				if (!settings) {
 					return;
 				}
-				let heroes = Object.values(await Caller.send('heroGetAll'))
-					.filter((hero) => this.getTierSlots(hero).some(({ slotId }) => !this.isSlotEquipped(hero, slotId)))
-					.sort((left, right) => Number(right.power) - Number(left.power));
-				const heroesById = new Map(heroes.map((hero) => [Number(hero.id), hero]));
-				heroes = priorityOrder.map((heroId) => heroesById.get(heroId)).filter(Boolean);
-				if (!heroes.length) {
-					await popup.confirm(I18N('GEAR_FARM_ALL_EQUIPPED'));
+				const { priorityOrder, energyLimit: configuredEnergyLimit, pauseMs } = settings;
+				if (!configuredEnergyLimit) {
 					return;
 				}
-				const hero = heroes[0];
-
-				const [inventory, missions, userInfo] = await Caller.send(['inventoryGet', 'missionGetAll', 'userGetInfo']);
-				const vipLevel = Math.max(0, ...Object.values(lib.data?.level?.vip ?? {})
-					.filter((level) => Number(level.vipPoints) <= Number(userInfo.vipPoints))
-					.map((level) => Number(level.level) || 0));
-				const raidBatchSize = 10;
-				const farmableSlots = this.getTierSlots(hero).filter(({ slotId, itemId }) => !this.isSlotEquipped(hero, slotId) && Number(hero.level) >= this.getGearHeroLevelRequirement(itemId));
-				const targets = this.buildMissingItems(farmableSlots, inventory);
-				const unavailable = targets.filter((target) => !this.getMissionOptions(target, missions).length);
-				if (unavailable.length === targets.length) {
-					const missingTargets = targets.map(({ type, itemId, amount }) => `${type}:${itemId} x${amount}`).join(', ');
-					console.warn('Gear farm: no mission found for required items', { heroId: hero.id, targets, missions });
-					await popup.confirm(`${I18N('GEAR_FARM_NO_MISSIONS')}<br><small>${missingTargets}</small>`);
-					return;
-				}
-
-				const enteredEnergyLimit = Number(await popup.confirm(
-					`${I18N('GEAR_FARM_PLAN', { hero: this.getHeroName(hero.id), slots: farmableSlots.length })}${vipLevel === 0 ? `<br><br>${I18N('GEAR_FARM_NORMAL_MODE')}` : ''}${unavailable.length ? `<br><br>${I18N('GEAR_FARM_UNAVAILABLE', { count: unavailable.length })}` : ''}`,
-					[
-						{ msg: I18N('BTN_CANCEL'), result: false, isCancel: true, color: 'red' },
-						{ msg: I18N('BTN_RUN'), isInput: true, default: 100, color: 'green' },
-					]
-				));
-				if (!enteredEnergyLimit || enteredEnergyLimit < 1) {
-					return;
-				}
-				const liveUserInfo = await Caller.send('userGetInfo');
-				const energyLimit = Math.min(enteredEnergyLimit, this.getStaminaAmount(liveUserInfo));
-
-				if (vipLevel > 0) {
-					let currentInventory = inventory;
-					let currentMissions = missions;
-					let spent = 0;
-					let raidsDone = 0;
-					const confirmPlan = async (raids) => {
-						const plan = this.planRaids(raids, energyLimit - spent);
-						if (!plan.length) {
-							return [];
+				farmStarted = true;
+				this.pauseMs = pauseMs;
+				let spent = 0;
+				let raidsDone = 0;
+				let crafted = 0;
+				let outOfEnergy = false;
+				const skippedSlots = new Map();
+				for (const heroId of priorityOrder) {
+					let state = null;
+					let autoEquipChecked = false;
+					const skipped = skippedSlots.get(heroId) ?? new Set();
+					skippedSlots.set(heroId, skipped);
+					while (!this.stopRequested && !outOfEnergy) {
+						state ??= await Caller.send(['heroGetAll', 'inventoryGet', 'missionGetAll', 'userGetInfo']).then(([heroes, inventory, missions, userInfo]) => ({ heroes, inventory, missions, userInfo }));
+						let { heroes, inventory, missions, userInfo } = state;
+						let hero = heroes[heroId];
+						if (!hero) {
+							break;
 						}
-						const details = plan.map(({ target, id, times, cost }) => I18N('GEAR_FARM_MISSION', { mission: this.getFarmLocation(target, id), times, stamina: times * cost })).join('<br>');
-						const confirmed = await popup.confirm(
-							`${I18N('GEAR_FARM_PLAN', { hero: this.getHeroName(hero.id), slots: farmableSlots.length })}<br><br>${details}`,
-							[
-								{ msg: I18N('BTN_CANCEL'), result: false, isCancel: true, color: 'red' },
-								{ msg: I18N('BTN_RUN'), result: true, color: 'green' },
-							],
-						);
-						return confirmed ? plan : null;
-					};
-					const runPlan = async (plan) => {
-						for (const raid of plan) {
-							let remaining = raid.times;
-							while (remaining > 0 && !this.stopRequested) {
-								const batch = Math.min(raid.batchSize, remaining);
-								this.setFarmProgress(I18N('GEAR_FARM_PROGRESS', {
-									mission: this.getFarmLocation(raid.target, raid.id),
-									done: raidsDone + batch,
-									total: raidsDone + remaining,
-									stamina: spent + batch * raid.cost,
-									limit: energyLimit,
-								}));
-								await Caller.send({ name: 'missionRaid', args: { id: raid.id, times: batch } });
-								await this.waitForInventorySync();
-								await this.refreshClientInventory();
-								remaining -= batch;
-								spent += batch * raid.cost;
-								raidsDone += batch;
+						const heroName = this.getHeroName(heroId);
+						if (this.getAutoEquipHeroes()[heroId] && !autoEquipChecked) {
+							const equipped = await this.autoEquipHero(heroId);
+							if (equipped.equipped || equipped.promoted) {
+								state = null;
+								continue;
 							}
-							if (this.stopRequested) {
+							({ heroes, inventory, missions, userInfo } = await Caller.send(['heroGetAll', 'inventoryGet', 'missionGetAll', 'userGetInfo']).then(([nextHeroes, nextInventory, nextMissions, nextUserInfo]) => ({ heroes: nextHeroes, inventory: nextInventory, missions: nextMissions, userInfo: nextUserInfo })));
+							state = { heroes, inventory, missions, userInfo };
+							autoEquipChecked = true;
+							hero = heroes[heroId];
+							if (!hero) {
 								break;
 							}
 						}
-					};
-
-					const heroicPlan = await confirmPlan(this.getHeroicRaids(targets, currentMissions));
-					if (heroicPlan === null) {
-						return;
-					}
-					await runPlan(heroicPlan);
-					if (!this.stopRequested) {
-						[currentInventory, currentMissions] = await Caller.send(['inventoryGet', 'missionGetAll']);
-						const remainingTargets = this.buildMissingItems(farmableSlots, currentInventory);
-						if (!this.getHeroicRaids(remainingTargets, currentMissions).length) {
-							const normalPlan = await confirmPlan(this.getNormalRaids(remainingTargets, currentMissions, raidBatchSize));
-							if (normalPlan === null) {
-								return;
-							}
-							await runPlan(normalPlan);
-						}
-					}
-					const crafted = this.stopRequested ? 0 : await this.craftGear(farmableSlots);
-					if (!this.stopRequested && this.getAutoEquipHeroes()[hero.id]) {
-						await this.autoEquipHero(hero.id);
-					}
-					await this.refreshClientInventory();
-					setProgress(I18N(this.stopRequested ? 'GEAR_FARM_STOPPED' : 'GEAR_FARM_DONE', { raids: raidsDone, stamina: spent, crafted }), true);
-					return;
-				}
-				if (vipLevel === 0) {
-					let currentInventory = inventory;
-					let currentMissions = missions;
-					let spent = 0;
-					let runs = 0;
-					while (spent < energyLimit && !this.stopRequested) {
-						const missingItems = this.buildMissingItems(farmableSlots, currentInventory);
-						if (!missingItems.length) {
+						const slots = this.getTierSlots(hero)
+							.filter(({ slotId, itemId }) => !skipped.has(slotId) && !this.isSlotEquipped(hero, slotId) && Number(hero.level) >= this.getGearHeroLevelRequirement(itemId))
+							.sort((left, right) => left.itemId - right.itemId || left.slotId - right.slotId);
+						if (!slots.length) {
 							break;
 						}
-						const nextMission = missingItems
-							.map((target) => ({ target, mission: this.getMissionOptions(target, currentMissions)[0] }))
-							.filter(({ mission }) => mission && mission.cost <= energyLimit - spent)
-							.sort((left, right) => Number(right.mission.isHeroic) - Number(left.mission.isHeroic) || right.mission.id - left.mission.id)[0];
-						if (!nextMission) {
+						const slot = slots[0];
+						const rootPath = [{ type: 'gear', itemId: slot.itemId }];
+						if (this.getInventoryAmount(inventory, 'gear', slot.itemId) > 0) {
+							skipped.add(slot.slotId);
+							continue;
+						}
+						const craftStep = this.getCraftStep('gear', slot.itemId, 1, inventory, userInfo, rootPath);
+						if (craftStep) {
+							await this.craftStep(craftStep, heroName, inventory, userInfo);
+							crafted++;
+							state = { heroes, inventory, missions, userInfo };
+							autoEquipChecked = this.getInventoryAmount(inventory, 'gear', slot.itemId) < 1;
+							continue;
+						}
+						const farmStep = this.getFarmTarget('gear', slot.itemId, 1, inventory, rootPath);
+						if (!farmStep) {
+							skipped.add(slot.slotId);
+							continue;
+						}
+						const options = this.getMissionOptions(farmStep.target, missions);
+						const vipLevel = Math.max(0, ...Object.values(lib.data?.level?.vip ?? {})
+							.filter((level) => Number(level.vipPoints) <= Number(userInfo.vipPoints))
+							.map((level) => Number(level.level) || 0));
+						const heroic = options.find((option) => option.isHeroic);
+						const normal = options.find((option) => !option.isHeroic);
+						const mission = vipLevel > 0 ? heroic ?? normal : options[0];
+						const times = vipLevel > 0 && !heroic ? 10 : 1;
+						if (!mission) {
+							console.warn('Gear farm: no mission found for item', { heroId, slot, farmStep });
+							skipped.add(slot.slotId);
+							continue;
+						}
+						const staminaCost = mission.cost * times;
+						if (staminaCost > configuredEnergyLimit - spent || staminaCost > this.getStaminaAmount(userInfo)) {
+							outOfEnergy = true;
 							break;
 						}
-						const { mission } = nextMission;
-						this.setFarmProgress(I18N('GEAR_FARM_NORMAL_PROGRESS', {
-							runs: runs + 1,
-							stamina: spent + mission.cost,
-							limit: energyLimit,
-						}));
-						await testCompany(
-							[{ id: mission.id, times: 1 }],
-							false,
-							(id) => this.getFarmLocation(nextMission.target, id),
-							() => this.requestStop(),
-							() => this.stopRequested,
-						);
-						await this.waitForInventorySync();
-						await this.refreshClientInventory();
-						[currentInventory, currentMissions] = await Caller.send(['inventoryGet', 'missionGetAll']);
-						spent += mission.cost;
-						runs++;
+						const progress = this.getFarmProgress(heroName, farmStep.path, mission.id);
+						this.setFarmProgress(progress);
+						if (vipLevel > 0) {
+							const raidResponse = await Caller.send({ name: 'missionRaid', args: { id: mission.id, times } });
+							this.applyRaidRewards(inventory, raidResponse);
+							this.applyRaidState(missions, userInfo, mission.id, times, staminaCost);
+							state = { heroes, inventory, missions, userInfo };
+							autoEquipChecked = this.getInventoryAmount(inventory, 'gear', slot.itemId) < 1;
+						} else {
+							await testCompany(
+								[{ id: mission.id, times: 1 }],
+								false,
+								() => progress,
+								() => this.requestStop(),
+								() => this.stopRequested,
+							);
+							state = null;
+							autoEquipChecked = false;
+						}
+						spent += staminaCost;
+						raidsDone += times;
+						await this.waitForInventorySync(progress);
+						await this.refreshClientInventory(state?.inventory);
 					}
-					const crafted = this.stopRequested ? 0 : await this.craftGear(farmableSlots);
-					if (!this.stopRequested && this.getAutoEquipHeroes()[hero.id]) {
-						await this.autoEquipHero(hero.id);
-					}
-					await this.refreshClientInventory();
-					setProgress(I18N(this.stopRequested ? 'GEAR_FARM_STOPPED' : 'GEAR_FARM_DONE', { raids: runs, stamina: spent, crafted }), true);
-					return;
 				}
+				setProgress(I18N(this.stopRequested ? 'GEAR_FARM_STOPPED' : 'GEAR_FARM_DONE', { raids: raidsDone, stamina: spent, crafted }), true);
 			} catch (error) {
 				console.error('Gear farm failed', error);
 				const details = String(error?.message ?? error).replace(/[&<>"']/g, (character) => ({
@@ -14417,7 +14640,14 @@
 				setProgress(message, false, hideProgress);
 				await popup.confirm(message);
 			} finally {
+				const reload = farmStarted && await popup.confirm(I18N('GEAR_FARM_RELOAD_CONFIRM'), [
+					{ msg: I18N('BTN_YES'), result: true, color: 'green', countdown: 10 },
+					{ msg: I18N('BTN_NO'), result: false, color: 'red', isCancel: true },
+				]);
 				GearFarmer.running = false;
+				if (reload) {
+					location.replace(location.pathname);
+				}
 			}
 		}
 	}
