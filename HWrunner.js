@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HWrunner
 // @namespace    https://github.com/hw-scripts/runner
-// @version      1.0.27
+// @version      1.0.28
 // @description  Hero Wars autorunner
 // @description:en Hero Wars autorunner
 // @description:uk Автоматичний працівник для Hero Wars
@@ -14110,8 +14110,9 @@
 		}
 
 		applyRaidState(missions, userInfo, missionId, times, staminaCost) {
-			if (missions?.[missionId]) {
-				missions[missionId].triesSpent = (Number(missions[missionId].triesSpent) || 0) + times;
+			const mission = Object.values(missions ?? {}).find((entry) => Number(entry?.id) === Number(missionId));
+			if (mission) {
+				mission.triesSpent = (Number(mission.triesSpent) || 0) + times;
 			}
 			const stamina = Object.values(userInfo?.refillable ?? {}).find((entry) => Number(entry?.id) === 1);
 			if (stamina) {
