@@ -643,6 +643,11 @@
 			justify-content: flex-start;
 			padding-left: 12px;
 		}
+		.scriptMenu_settingsIcon {
+			width: 1em;
+			display: inline-flex;
+			justify-content: center;
+		}
 
 		.scriptMenu_btnGap.brown {
 			--pl: 40%;
