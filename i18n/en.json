@@ -426,5 +426,7 @@
     "GEAR_FARM_PAUSE":  "Pause (ms)",
     "GEAR_FARM_RELOAD_CONFIRM":  "Update data?",
     "STARTUP":  "On startup",
-    "STARTUP_SETTINGS":  "What to do during startup"
+    "STARTUP_SETTINGS":  "What to do during startup",
+    "SEQUENCE":  "Run sequence",
+    "SEQUENCE_TITLE":  "Run selected actions in order"
 }

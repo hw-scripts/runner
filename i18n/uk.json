@@ -426,5 +426,7 @@
     "GEAR_FARM_PAUSE":  "Пауза (мс)",
     "GEAR_FARM_RELOAD_CONFIRM":  "Оновити дані?",
     "STARTUP":  "При старті",
-    "STARTUP_SETTINGS":  "Що робити під час запуску"
+    "STARTUP_SETTINGS":  "Що робити під час запуску",
+    "SEQUENCE":  "Зробити послідовність",
+    "SEQUENCE_TITLE":  "Виконати вибрані дії по черзі"
 }
