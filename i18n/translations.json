@@ -85,9 +85,9 @@
                           "ru":  "Отключить донат"
                       },
     "DISABLE_DONAT_TITLE":  {
-                                "en":  "Removes all donation requests<br />May block some necessary functions",
-                                "uk":  "Видаляє всі запити на донат<br />Може блокувати деякі необхідні функції",
-                                "ru":  "Удаляет все запросы на донат<br />Может заблокировать некоторые необходимые функции"
+                                "en":  "Removes all donation requests\u003cbr /\u003eMay block some necessary functions",
+                                "uk":  "Видаляє всі запити на донат\u003cbr /\u003eМоже блокувати деякі необхідні функції",
+                                "ru":  "Удаляет все запросы на донат\u003cbr /\u003eМожет заблокировать некоторые необходимые функции"
                             },
     "DAILY_QUESTS":  {
                          "en":  "Quests",
@@ -235,9 +235,9 @@
                  "ru":  "Синхронизация"
              },
     "SYNC_TITLE":  {
-                       "en":  "Partial game data synchronization without reloading the page<br />Not everything will change",
-                       "uk":  "Часткова синхронізація даних гри без перезавантаження сторінки<br />Зміниться не все",
-                       "ru":  "Частичная синхронизация игровых данных без перезагрузки страницы<br />Изменится не всё"
+                       "en":  "Partial game data synchronization without reloading the page\u003cbr /\u003eNot everything will change",
+                       "uk":  "Часткова синхронізація даних гри без перезавантаження сторінки\u003cbr /\u003eЗміниться не все",
+                       "ru":  "Частичная синхронизация игровых данных без перезагрузки страницы\u003cbr /\u003eИзменится не всё"
                    },
     "GEAR_FARM":  {
                       "en":  "Gear Farm",
@@ -1215,7 +1215,7 @@
                   "ru":  "Стадия"
               },
     "DONT_HAVE_LIVES":  {
-                            "en":  "You don\u0027t have lives",
+                            "en":  "You don't have lives",
                             "uk":  "У вас немає життів",
                             "ru":  "У вас нет жизней"
                         },
@@ -2080,30 +2080,30 @@
                              "ru":  "Перезапуск игры..."
                          },
     "PACKS":  {
-                    "en":  "Packs",
-                    "uk":  "Паки",
-                    "ru":  "Паки"
-                },
-    "PACKS_TITLE":  {
-                          "en":  "Manage hero development packs",
-                          "uk":  "Керування паками розвитку героїв",
-                          "ru":  "Управление паками развития героев"
-                      },
-    "PACK":  {
-                  "en":  "Pack",
-                  "uk":  "Пак",
-                  "ru":  "Пак"
+                  "en":  "Packs",
+                  "uk":  "Паки",
+                  "ru":  "Паки"
               },
+    "PACKS_TITLE":  {
+                        "en":  "Manage hero development packs",
+                        "uk":  "Керування паками розвитку героїв",
+                        "ru":  "Управление паками развития героев"
+                    },
+    "PACK":  {
+                 "en":  "Pack",
+                 "uk":  "Пак",
+                 "ru":  "Пак"
+             },
     "PACK_BANNER":  {
-                         "en":  "Pack banner",
-                         "uk":  "Стяг паку",
-                         "ru":  "Флаг пака"
-                     },
+                        "en":  "Pack banner",
+                        "uk":  "Стяг паку",
+                        "ru":  "Флаг пака"
+                    },
     "PACK_PET":  {
-                      "en":  "Main pet",
-                      "uk":  "Головний пет",
-                      "ru":  "Главный питомец"
-                  },
+                     "en":  "Main pet",
+                     "uk":  "Головний пет",
+                     "ru":  "Главный питомец"
+                 },
     "SEERGAME_PROGRESS":  {
                               "en":  "Round {round}, Consecutive wins: {streak}",
                               "uk":  "Round {round}, Послідовних перемог: {streak}",
@@ -2126,7 +2126,17 @@
                         },
     "GEAR_FARM_RELOAD_CONFIRM":  {
                                      "en":  "Update data?",
-                                     "uk":  "\u041e\u043d\u043e\u0432\u0438\u0442\u0438 \u0434\u0430\u043d\u0456?",
-                                     "ru":  "\u041e\u0431\u043d\u043e\u0432\u0438\u0442\u044c \u0434\u0430\u043d\u043d\u044b\u0435?"
-                                 }
+                                     "uk":  "Оновити дані?",
+                                     "ru":  "Обновить данные?"
+                                 },
+    "STARTUP":  {
+                    "en":  "On startup",
+                    "uk":  "При старті",
+                    "ru":  "При запуске"
+                },
+    "STARTUP_SETTINGS":  {
+                             "en":  "What to do during startup",
+                             "uk":  "Що робити під час запуску",
+                             "ru":  "Что делать при запуске"
+                         }
 }

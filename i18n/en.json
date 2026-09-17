@@ -424,5 +424,7 @@
     "GEAR_FARM_AUTOMATIC":  "Automatic farming",
     "GEAR_FARM_ENERGY_LIMIT":  "Energy limit",
     "GEAR_FARM_PAUSE":  "Pause (ms)",
-    "GEAR_FARM_RELOAD_CONFIRM":  "Update data?"
+    "GEAR_FARM_RELOAD_CONFIRM":  "Update data?",
+    "STARTUP":  "On startup",
+    "STARTUP_SETTINGS":  "What to do during startup"
 }

@@ -424,5 +424,7 @@
     "GEAR_FARM_AUTOMATIC":  "Автоматический фарм",
     "GEAR_FARM_ENERGY_LIMIT":  "Лимит энергии",
     "GEAR_FARM_PAUSE":  "Пауза (мс)",
-    "GEAR_FARM_RELOAD_CONFIRM":  "Обновить данные?"
+    "GEAR_FARM_RELOAD_CONFIRM":  "Обновить данные?",
+    "STARTUP":  "При запуске",
+    "STARTUP_SETTINGS":  "Что делать при запуске"
 }
