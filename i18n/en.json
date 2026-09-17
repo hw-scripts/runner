@@ -428,5 +428,7 @@
     "STARTUP":  "On startup",
     "STARTUP_SETTINGS":  "What to do during startup",
     "SEQUENCE":  "Run sequence",
-    "SEQUENCE_TITLE":  "Run selected actions in order"
+    "SEQUENCE_TITLE":  "Run selected actions in order",
+    "SETTINGS_BEHAVIOR":  "Behavior",
+    "SETTINGS_BATTLES":  "Battles"
 }

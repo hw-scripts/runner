@@ -2148,5 +2148,15 @@
                            "en":  "Run selected actions in order",
                            "uk":  "Виконати вибрані дії по черзі",
                            "ru":  "Выполнить выбранные действия по очереди"
-                       }
+                       },
+    "SETTINGS_BEHAVIOR":  {
+                              "en":  "Behavior",
+                              "uk":  "Поведінка",
+                              "ru":  "Поведение"
+                          },
+    "SETTINGS_BATTLES":  {
+                             "en":  "Battles",
+                             "uk":  "Бої",
+                             "ru":  "Бои"
+                         }
 }

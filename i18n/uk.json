@@ -428,5 +428,7 @@
     "STARTUP":  "При старті",
     "STARTUP_SETTINGS":  "Що робити під час запуску",
     "SEQUENCE":  "Зробити послідовність",
-    "SEQUENCE_TITLE":  "Виконати вибрані дії по черзі"
+    "SEQUENCE_TITLE":  "Виконати вибрані дії по черзі",
+    "SETTINGS_BEHAVIOR":  "Поведінка",
+    "SETTINGS_BATTLES":  "Бої"
 }
