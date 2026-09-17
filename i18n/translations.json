@@ -149,6 +149,16 @@
                        "uk":  "Запустити скрипт",
                        "ru":  "Запустить скрипт"
                    },
+    "AUTOPILOT":  {
+                      "en":  "Autopilot",
+                      "uk":  "Автопілот",
+                      "ru":  "Автопилот"
+                  },
+    "AUTOPILOT_SETTINGS":  {
+                               "en":  "Autopilot settings",
+                               "uk":  "Налаштування автопілота",
+                               "ru":  "Настройки автопилота"
+                           },
     "TO_DO_EVERYTHING":  {
                              "en":  "Do everything",
                              "uk":  "Зробити все",

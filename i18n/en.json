@@ -29,6 +29,8 @@
     "NUMBER_OF_TEST":  "Number of test fights",
     "NUMBER_OF_AUTO_BATTLE":  "Number of auto-battle attempts",
     "RUN_SCRIPT":  "Run the script",
+    "AUTOPILOT":  "Autopilot",
+    "AUTOPILOT_SETTINGS":  "Autopilot settings",
     "TO_DO_EVERYTHING":  "Do everything",
     "TO_DO_EVERYTHING_TITLE":  "Perform a series of selected actions",
     "OUTLAND":  "Outland",
