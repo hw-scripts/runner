@@ -2158,5 +2158,10 @@
                              "en":  "Battles",
                              "uk":  "Бої",
                              "ru":  "Бои"
-                         }
+                         },
+    "SETTINGS_ADDITIONAL":  {
+                                "en":  "Additional",
+                                "uk":  "Додатково",
+                                "ru":  "Дополнительно"
+                            }
 }

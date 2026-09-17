@@ -430,5 +430,6 @@
     "SEQUENCE":  "Run sequence",
     "SEQUENCE_TITLE":  "Run selected actions in order",
     "SETTINGS_BEHAVIOR":  "Behavior",
-    "SETTINGS_BATTLES":  "Battles"
+    "SETTINGS_BATTLES":  "Battles",
+    "SETTINGS_ADDITIONAL":  "Additional"
 }

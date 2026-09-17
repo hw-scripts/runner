@@ -542,6 +542,15 @@
 		.scriptMenu_Details {
 			align-self: center;
 		}
+		.scriptMenu_Details.scriptMenu_settings {
+			align-self: stretch;
+			width: 100%;
+		}
+		.scriptMenu_Details.scriptMenu_settings .scriptMenu_Summary {
+			margin-left: 0;
+			padding-left: 0;
+			text-align: left;
+		}
 
 		.scriptMenu_btnSocket {
 			position: relative;

@@ -430,5 +430,6 @@
     "SEQUENCE":  "Зробити послідовність",
     "SEQUENCE_TITLE":  "Виконати вибрані дії по черзі",
     "SETTINGS_BEHAVIOR":  "Поведінка",
-    "SETTINGS_BATTLES":  "Бої"
+    "SETTINGS_BATTLES":  "Бої",
+    "SETTINGS_ADDITIONAL":  "Додатково"
 }
