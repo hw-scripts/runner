@@ -1,4 +1,6 @@
 (function () {
+	let extensionRequestId = 0;
+
 	const runnerInfo = (() => {
 		const id = `HWrunnerInfo_${Date.now()}`;
 		let info = null;
@@ -15,7 +17,54 @@
 		}
 		return Object.freeze(info);
 	})();
-	let extensionRequestId = 0;
+
+	/**
+	  * Original methods for working with AJAX
+	  *
+	  */
+	const original = {
+		open: XMLHttpRequest.prototype.open,
+		send: XMLHttpRequest.prototype.send,
+		setRequestHeader: XMLHttpRequest.prototype.setRequestHeader,
+		SendWebSocket: WebSocket.prototype.send,
+		fetch: fetch,
+	};
+
+	// Sentry blocking
+	this.fetch = function (url, options) {
+		/**
+		 * Checking URL for blocking
+		 */
+		if (url.includes('sentry.io')) {
+			console.log('%cFetch blocked', 'color: red');
+			console.log(url, options);
+			const body = {
+				id: md5(Date.now()),
+			};
+			let info = {};
+			try {
+				info = JSON.parse(options.body);
+			} catch (e) { }
+			if (info.event_id) {
+				body.id = info.event_id;
+			}
+			/**
+			 * Mock response for blocked URL
+			 *
+			 */
+			const mockResponse = new Response('Custom blocked response', {
+				status: 200,
+				headers: { 'Content-Type': 'application/json' },
+				body,
+			});
+			return Promise.resolve(mockResponse);
+		} else {
+			/**
+			 * Call the original fetch function for all other URLs
+			 */
+			return original.fetch.apply(this, arguments);
+		}
+	};
 
 	function extensionXmlHttpRequest(options) {
 		const id = `HWrunnerRequest_${Date.now()}_${++extensionRequestId}`;
@@ -67,6 +116,7 @@
 		}),
 		scriptUpdateURL: 'https://update.greasyfork.org/scripts/450693/HeroWarsHelper.meta.js',
 	});
+	
 	/**
 	 * Information for completing daily quests
 	 *
@@ -230,54 +280,6 @@
 			});
 		});
 	}
-
-	/**
-	 * Original methods for working with AJAX
-	 *
-	 */
-	const original = {
-		open: XMLHttpRequest.prototype.open,
-		send: XMLHttpRequest.prototype.send,
-		setRequestHeader: XMLHttpRequest.prototype.setRequestHeader,
-		SendWebSocket: WebSocket.prototype.send,
-		fetch: fetch,
-	};
-
-	// Sentry blocking
-	this.fetch = function (url, options) {
-		/**
-		 * Checking URL for blocking
-		 */
-		if (url.includes('sentry.io')) {
-			console.log('%cFetch blocked', 'color: red');
-			console.log(url, options);
-			const body = {
-				id: md5(Date.now()),
-			};
-			let info = {};
-			try {
-				info = JSON.parse(options.body);
-			} catch (e) { }
-			if (info.event_id) {
-				body.id = info.event_id;
-			}
-			/**
-			 * Mock response for blocked URL
-			 *
-			 */
-			const mockResponse = new Response('Custom blocked response', {
-				status: 200,
-				headers: { 'Content-Type': 'application/json' },
-				body,
-			});
-			return Promise.resolve(mockResponse);
-		} else {
-			/**
-			 * Call the original fetch function for all other URLs
-			 */
-			return original.fetch.apply(this, arguments);
-		}
-	};
 
 	/**
 	 * Decoder for converting byte data to JSON string
