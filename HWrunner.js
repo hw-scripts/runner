@@ -1,40 +1,62 @@
-// ==UserScript==
-// @name         HWrunner
-// @namespace    https://github.com/hw-scripts/runner
-// @version      1.0.47
-// @description  Hero Wars autorunner
-// @description:en Hero Wars autorunner
-// @description:uk Автоматичний працівник для Hero Wars
-// @description:ru Автоматический работник для Hero Wars
-// @author       yuriimouse, based on HeroWarsHelper by ZingerY
-// @homepageURL  https://github.com/hw-scripts/runner
-// @supportURL   https://github.com/hw-scripts/runner/issues
-// @icon         https://www.google.com/s2/favicons?sz=64&domain=hero-wars.com
-// @match			https://www.hero-wars.com/*
-// @match			https://www.hero-wars.cn/*
-// @match			https://apps-1701433570146040.apps.fbsbx.com/*
-// @run-at			document-start
-// @grant			GM_xmlhttpRequest
-// @connect			tools.oaslo.com
-// @connect			raw.githubusercontent.com
-// @connect			api.github.com
-// @connect			community.hero-wars.com
-// @connect			herowars.me
-// ==/UserScript==
-
 (function () {
+	const runnerInfo = (() => {
+		const id = `HWrunnerInfo_${Date.now()}`;
+		let info = null;
+		const onResponse = (event) => {
+			if (event.detail?.id === id) {
+				info = event.detail.runnerInfo;
+			}
+		};
+		window.addEventListener('HWrunner:extension-info-response', onResponse);
+		window.dispatchEvent(new CustomEvent('HWrunner:extension-info-request', { detail: { id } }));
+		window.removeEventListener('HWrunner:extension-info-response', onResponse);
+		if (!info) {
+			throw new Error('HWrunner extension bridge is unavailable');
+		}
+		return Object.freeze(info);
+	})();
+	let extensionRequestId = 0;
+
+	function extensionXmlHttpRequest(options) {
+		const id = `HWrunnerRequest_${Date.now()}_${++extensionRequestId}`;
+		const responseEvent = 'HWrunner:extension-response';
+		const onResponse = (event) => {
+			if (event.detail?.id !== id) {
+				return;
+			}
+			window.removeEventListener(responseEvent, onResponse);
+			if (event.detail.error) {
+				options.onerror?.(new Error(event.detail.error.message || 'Request failed'));
+				return;
+			}
+			options.onload?.(event.detail.response);
+		};
+		window.addEventListener(responseEvent, onResponse);
+		window.dispatchEvent(new CustomEvent('HWrunner:extension-request', {
+			detail: {
+				id,
+				request: {
+					method: options.method,
+					url: options.url,
+					headers: options.headers,
+					data: options.data,
+				},
+			},
+		}));
+	}
+
 	/**
 	 * Start script
 	 *
 	 */
-	console.log('%cStart ' + GM_info.script.name + ', v' + GM_info.script.version + ' by ' + GM_info.script.author, 'color: red');
+	console.log('%cStart ' + runnerInfo.name + ', v' + runnerInfo.version + ' by ' + runnerInfo.author, 'color: red');
 	/**
 	 * Script info
 	 *
 	 */
 	this.scriptInfo = (({ name, version, author, homepage, lastModified }, updateUrl) =>
 		({ name, version, author, homepage, lastModified, updateUrl }))
-		(GM_info.script, GM_info.scriptUpdateURL);
+		(runnerInfo, runnerInfo.updateUrl);
 	// The quiz checks window.GM_info for the original HeroWarsHelper identity.
 	this.GM_info = Object.freeze({
 		script: Object.freeze({
@@ -171,7 +193,7 @@
 	/** Reports the active player session to Oaslo. */
 	function sendOasloPresence(gameData) {
 		return new Promise((resolve, reject) => {
-			GM_xmlhttpRequest({
+			extensionXmlHttpRequest({
 				method: 'POST',
 				url: 'https://tools.oaslo.com/app/presence',
 				headers: { 'Content-Type': 'application/json' },
@@ -185,7 +207,7 @@
 	/** Initializes Oaslo and opens its setup page for the current session. */
 	function openOasloSetup(gameData) {
 		return new Promise((resolve, reject) => {
-			GM_xmlhttpRequest({
+			extensionXmlHttpRequest({
 				method: 'POST',
 				url: 'https://tools.oaslo.com/app/init',
 				headers: { 'Content-Type': 'application/json' },
@@ -340,7 +362,7 @@
 
 	function requestLanguageDictionary(language) {
 		return new Promise((resolve, reject) => {
-			GM_xmlhttpRequest({
+			extensionXmlHttpRequest({
 				method: 'GET',
 				url: `${i18nRepositoryUrl}/${language}.json`,
 				onload: (response) => {
@@ -5091,7 +5113,7 @@
 	function getAutoGifts() {
 		const storageKey = `communityBonusGiftIds_${userInfo.id}`;
 		const requestText = (url) => new Promise((resolve, reject) => {
-			GM_xmlhttpRequest({
+			extensionXmlHttpRequest({
 				method: 'GET',
 				url,
 				onload: (response) => response.status >= 200 && response.status < 300 ? resolve(response) : reject(new Error(`HTTP ${response.status}`)),
@@ -5218,7 +5240,7 @@
 
 	function requestSkinNames() {
 		return new Promise((resolve, reject) => {
-			GM_xmlhttpRequest({
+			extensionXmlHttpRequest({
 				method: 'GET',
 				url: stylesListUrl,
 				onload: (response) => {
@@ -5264,7 +5286,7 @@
 
 	function requestSkinStylesheet(skin) {
 		return new Promise((resolve, reject) => {
-			GM_xmlhttpRequest({
+			extensionXmlHttpRequest({
 				method: 'GET',
 				url: `${stylesRepositoryUrl}/${skin}.css`,
 				onload: (response) => response.status.toString().startsWith('2') ? resolve(response.responseText) : reject(new Error(`Unable to load ${skin} stylesheet: HTTP ${response.status}`)),

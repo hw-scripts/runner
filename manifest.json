@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "HWrunner",
+  "version": "2.0.0",
+  "description": "Hero Wars autorunner",
+  "author": "Miish",
+  "homepage_url": "https://github.com/hw-scripts/runner",
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.hero-wars.com/*",
+        "https://www.hero-wars.cn/*",
+        "https://apps-1701433570146040.apps.fbsbx.com/*"
+      ],
+      "js": ["bridge.js"],
+      "run_at": "document_start",
+      "all_frames": true,
+      "world": "ISOLATED"
+    },
+    {
+      "matches": [
+        "https://www.hero-wars.com/*",
+        "https://www.hero-wars.cn/*",
+        "https://apps-1701433570146040.apps.fbsbx.com/*"
+      ],
+      "js": ["HWrunner.js"],
+      "run_at": "document_start",
+      "all_frames": true,
+      "world": "MAIN"
+    }
+  ],
+  "host_permissions": [
+    "https://tools.oaslo.com/*",
+    "https://raw.githubusercontent.com/*",
+    "https://api.github.com/*",
+    "https://community.hero-wars.com/*",
+    "https://herowars.me/*"
+  ]
+}
