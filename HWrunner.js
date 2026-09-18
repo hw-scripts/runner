@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HWrunner
 // @namespace    https://github.com/hw-scripts/runner
-// @version      1.0.33
+// @version      1.0.47
 // @description  Hero Wars autorunner
 // @description:en Hero Wars autorunner
 // @description:uk Автоматичний працівник для Hero Wars
@@ -17,6 +17,7 @@
 // @grant			GM_xmlhttpRequest
 // @connect			tools.oaslo.com
 // @connect			raw.githubusercontent.com
+// @connect			api.github.com
 // @connect			community.hero-wars.com
 // @connect			herowars.me
 // ==/UserScript==
@@ -327,7 +328,14 @@
 	const scriptLanguages = ['en', 'uk', 'ru'];
 	const scriptLanguageStorageKey = GM_info.script.name + ':language';
 	const i18nLangData = {};
-	const i18nRepositoryUrl = 'https://raw.githubusercontent.com/hw-scripts/runner/master/i18n';
+	const runnerRepositoryUrl = 'https://raw.githubusercontent.com/hw-scripts/runner/master';
+	const i18nRepositoryUrl = `${runnerRepositoryUrl}/i18n`;
+	const stylesRepositoryUrl = `${runnerRepositoryUrl}/styles`;
+	const stylesListUrl = 'https://api.github.com/repos/hw-scripts/runner/contents/styles?ref=master';
+	const skinStorageKey = GM_info.script.name + ':skin';
+	const skinsCacheKey = GM_info.script.name + ':skins';
+	const stylesheetCacheKeyPrefix = GM_info.script.name + ':stylesheet:';
+	let availableSkins = [];
 	const i18nCacheKeyPrefix = GM_info.script.name + ':i18n:';
 
 	function requestLanguageDictionary(language) {
@@ -470,6 +478,7 @@
 			cbox: null,
 			get title() { return I18N('AUTO_EXPEDITION_TITLE'); },
 			default: false,
+			hide: true,
 		},
 		cancelBattle: {
 			get label() { return I18N('CANCEL_FIGHT'); },
@@ -518,6 +527,7 @@
 			cbox: null,
 			get title() { return I18N('DAILY_QUESTS_TITLE'); },
 			default: false,
+			hide: true,
 		},
 		autoBrawls: {
 			get label() { return I18N('BRAWLS'); },
@@ -559,6 +569,7 @@
 			cbox: null,
 			get title() { return I18N('BUY_FOR_GOLD_TITLE'); },
 			default: false,
+			hide: true,
 		},
 		hideServers: {
 			get label() { return I18N('HIDE_SERVERS'); },
@@ -582,7 +593,7 @@
 		if (!(checkBox in checkboxes)) {
 			return false;
 		}
-		return checkboxes[checkBox].cbox?.checked;
+		return checkboxes[checkBox].cbox?.checked ?? storage.get(checkBox, checkboxes[checkBox].default);
 	}
 	/**
 	 * Input fields
@@ -645,15 +656,6 @@
 	 *
 	 */
 	const buttons = {
-		getOutland: {
-			get name() {
-				return I18N('TO_DO_EVERYTHING');
-			},
-			get title() {
-				return I18N('TO_DO_EVERYTHING_TITLE');
-			},
-			onClick: testDoYourBest,
-		},
 		doActions: {
 			get name() {
 				return I18N('ACTIONS');
@@ -1645,6 +1647,11 @@
 					await loadI18n();
 				} catch (error) {
 					console.error('Unable to load interface dictionary', error);
+				}
+				try {
+					await loadStyles();
+				} catch (error) {
+					console.error('Unable to load interface stylesheet', error);
 				}
 				addControls();
 				addControlButtons();
@@ -3316,6 +3323,21 @@
 		});
 		languageHeader.appendChild(languageSelect);
 		languageSelect.title = 'v' + GM_info.script.version;
+		const skinSelect = document.createElement('select');
+		skinSelect.classList.add('scriptMenu_language', 'scriptMenu_skin');
+		for (const skin of availableSkins) {
+			const option = document.createElement('option');
+			option.value = skin;
+			option.textContent = getSkinLabel(skin);
+			skinSelect.appendChild(option);
+		}
+		skinSelect.value = getSelectedSkin();
+		skinSelect.title = skinSelect.value;
+		skinSelect.addEventListener('change', () => {
+			localStorage.setItem(skinStorageKey, skinSelect.value);
+			window.location.reload();
+		});
+		languageHeader.appendChild(skinSelect);
 		const { extentionsList } = HWHData;
 		if (extentionsList.length) {
 			for (const extention of extentionsList) {
@@ -3356,48 +3378,107 @@
 		});
 	}
 
+	async function showSettingsGroup(title, settingNames) {
+		const settings = settingNames.map((name) => ({
+			name,
+			label: checkboxes[name].label,
+			title: checkboxes[name].title,
+			checked: isChecked(name),
+		}));
+		const answer = await popup.confirm(
+			title,
+			[
+				{ msg: I18N('BTN_CANCEL'), result: false, isCancel: true, color: 'red' },
+				{ msg: I18N('BTN_SAVE'), result: true, color: 'green' },
+			],
+			settings
+		);
+		if (!answer) {
+			return;
+		}
+		for (const setting of popup.getCheckBoxes()) {
+			storage.set(setting.name, setting.checked);
+		}
+	}
+
+	async function showStartupSettings() {
+		return showSettingsGroup(I18N('STARTUP_SETTINGS'), ['sendExpedition', 'dailyQuests', 'buyForGold']);
+	}
+
+	async function showBehaviorSettings() {
+		return showSettingsGroup(I18N('SETTINGS_BEHAVIOR'), [
+			'countControl',
+			'noOfferDonat',
+			'tryFixIt_v2',
+			'showErrors',
+			'hideServers',
+		]);
+	}
+
+	async function showBattleSettings() {
+		return showSettingsGroup(I18N('SETTINGS_BATTLES'), [
+			'passBattle',
+			'cancelBattle',
+			'preCalcBattle',
+			'repeatMission',
+		]);
+	}
+
+	async function showAdditionalSettings() {
+		return showSettingsGroup(I18N('SETTINGS_ADDITIONAL'), [
+			'autoBrawls',
+			'getAnswer',
+			'fastSeason',
+		]);
+	}
+
 	function addControls() {
 		createInterface();
 		const { ScriptMenu } = HWHClasses;
 		const scriptMenu = ScriptMenu.getInst();
-		const checkboxDetails = scriptMenu.addDetails(I18N('SETTINGS'), 'settings');
-		const { checkboxes } = HWHData;
-		for (let name in checkboxes) {
-			if (checkboxes[name].hide) {
-				continue;
-			}
-			checkboxes[name].cbox = scriptMenu.addCheckbox(checkboxes[name].label, checkboxes[name].title, checkboxDetails);
-			/**
-			 * Getting the state of checkboxes from storage
-			 */
-			let val = storage.get(name, null);
-			if (val != null) {
-				checkboxes[name].cbox.checked = val;
-			} else {
-				storage.set(name, checkboxes[name].default);
-				checkboxes[name].cbox.checked = checkboxes[name].default;
-			}
-			/**
-			 * Tracing the change event of the checkbox for writing to storage
-			 */
-			checkboxes[name].cbox.dataset['name'] = name;
-			checkboxes[name].cbox.addEventListener('change', async function (event) {
-				const nameCheckbox = this.dataset['name'];
-				/*
-				if (this.checked && nameCheckbox == 'cancelBattle') {
-					this.checked = false;
-					if (await popup.confirm(I18N('MSG_BAN_ATTENTION'), [
-						{ msg: I18N('BTN_NO_I_AM_AGAINST'), result: true },
-						{ msg: I18N('BTN_YES_I_AGREE'), result: false },
-					])) {
-						return;
-					}
-					this.checked = true;
-				}
-				*/
-				storage.set(nameCheckbox, this.checked);
-			})
-		}
+		const settingsDetails = scriptMenu.addDetails(I18N('SETTINGS'), 'settings');
+		settingsDetails.classList.add('scriptMenu_settings');
+		const settingsSummary = settingsDetails.querySelector('.scriptMenu_Summary');
+		settingsSummary.textContent = '';
+		const settingsIcon = document.createElement('span');
+		settingsIcon.classList.add('scriptMenu_settingsIcon');
+		settingsIcon.innerHTML = '&#9881;';
+		settingsSummary.append(settingsIcon, document.createTextNode(I18N('SETTINGS')));
+		scriptMenu.addButton({
+			name: I18N('SETTINGS_BEHAVIOR'),
+			title: I18N('SETTINGS_BEHAVIOR'),
+			onClick: showBehaviorSettings,
+		}, settingsDetails);
+		scriptMenu.addButton({
+			name: I18N('SETTINGS_BATTLES'),
+			title: I18N('SETTINGS_BATTLES'),
+			onClick: showBattleSettings,
+		});
+		scriptMenu.addButton({
+			name: I18N('SETTINGS_ADDITIONAL'),
+			title: I18N('SETTINGS_ADDITIONAL'),
+			onClick: showAdditionalSettings,
+		});
+		// The category buttons use their own socket inside Settings.
+		scriptMenu.btnSocket = null;
+		scriptMenu.addButton({
+			name: `<span class="scriptMenu_settingsIcon">&#9211;</span><span>${I18N('STARTUP')}</span>`,
+			title: I18N('STARTUP_SETTINGS'),
+			classes: ['autopilot'],
+			onClick: showStartupSettings,
+		});
+		scriptMenu.addButton({
+			name: `<span class="scriptMenu_settingsIcon">&gt;&gt;</span><span>${I18N('SEQUENCE')}</span>`,
+			title: I18N('SEQUENCE_TITLE'),
+			classes: ['autopilot'],
+			onClick: testDoYourBest,
+		});
+		scriptMenu.addButton({
+			name: `<span class="scriptMenu_settingsIcon">&#9881;</span><span>${I18N('AUTOPILOT')}</span>`,
+			title: I18N('AUTOPILOT_SETTINGS'),
+			classes: ['autopilot'],
+			onClick: () => popup.confirm(I18N('AUTOPILOT_SETTINGS')),
+		});
 
 		const inputDetails = scriptMenu.addDetails(I18N('VALUES'), 'values');
 		const { inputs } = HWHData;
@@ -5070,7 +5151,8 @@
 		(async () => {
 			const processedIds = loadProcessedIds();
 			const giftIds = [];
-			for (const { url } of (await getCommunityLinks()).filter(isPossibleBonusLink)) {
+			const bonusLinks = (await getCommunityLinks()).filter(isPossibleBonusLink);
+			for (const { url } of bonusLinks) {
 				if (giftIds.length >= 10) {
 					break;
 				}
@@ -5080,6 +5162,8 @@
 				}
 			}
 			if (!giftIds.length) {
+				console.log(`${I18N('GIFTS')}: 0/${bonusLinks.length}`);
+				setProgress(`${I18N('GIFTS')}: 0/${bonusLinks.length}`, true);
 				return;
 			}
 			const calls = giftIds.map((giftId) => ({
@@ -5107,6 +5191,105 @@
 			console.error('Community bonus collection failed', error);
 			setProgress(`${I18N('GIFTS')}: ${error.message || 'Error'}`, true);
 		});
+	}
+
+	function getSelectedSkin(skins = availableSkins) {
+		try {
+			const savedSkin = localStorage.getItem(skinStorageKey);
+			if (skins.includes(savedSkin)) {
+				return savedSkin;
+			}
+		} catch (error) {
+			console.warn('Unable to read selected skin', error);
+		}
+		return skins.includes('classic') ? 'classic' : skins[0];
+	}
+
+	function getSkinLabel(skin) {
+		const key = `SKIN_${skin}`;
+		const translations = HWHData.i18nLangData;
+		const translatedName = translations[getLang()]?.[key] ?? translations.en?.[key];
+		if (translatedName) {
+			return translatedName;
+		}
+		const skinName = skin.replace(/[-_]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+		return getLang() === 'en' ? `${skinName} skin` : `Стиль ${skinName}`;
+	}
+
+	function requestSkinNames() {
+		return new Promise((resolve, reject) => {
+			GM_xmlhttpRequest({
+				method: 'GET',
+				url: stylesListUrl,
+				onload: (response) => {
+					if (!response.status.toString().startsWith('2')) {
+						reject(new Error(`Unable to load styles list: HTTP ${response.status}`));
+						return;
+					}
+					try {
+						const skins = JSON.parse(response.responseText)
+							.filter((file) => file.type === 'file' && file.name.endsWith('.css'))
+							.map((file) => file.name.slice(0, -4))
+							.sort();
+						resolve(skins);
+					} catch (error) {
+						reject(new Error('Invalid styles list'));
+					}
+				},
+				onerror: () => reject(new Error('Unable to load styles list')),
+			});
+		});
+	}
+
+	async function loadSkinNames() {
+		try {
+			const skins = await requestSkinNames();
+			if (!skins.length) {
+				throw new Error('Styles list is empty');
+			}
+			localStorage.setItem(skinsCacheKey, JSON.stringify(skins));
+			return skins;
+		} catch (error) {
+			try {
+				const cachedSkins = JSON.parse(localStorage.getItem(skinsCacheKey) || '[]');
+				if (Array.isArray(cachedSkins) && cachedSkins.length) {
+					return cachedSkins;
+				}
+			} catch (cacheError) {
+				console.warn('Unable to read cached styles list', cacheError);
+			}
+			throw error;
+		}
+	}
+
+	function requestSkinStylesheet(skin) {
+		return new Promise((resolve, reject) => {
+			GM_xmlhttpRequest({
+				method: 'GET',
+				url: `${stylesRepositoryUrl}/${skin}.css`,
+				onload: (response) => response.status.toString().startsWith('2') ? resolve(response.responseText) : reject(new Error(`Unable to load ${skin} stylesheet: HTTP ${response.status}`)),
+				onerror: () => reject(new Error(`Unable to load ${skin} stylesheet`)),
+			});
+		});
+	}
+
+	async function loadStyles() {
+		availableSkins = await loadSkinNames();
+		const skin = getSelectedSkin();
+		let css = '';
+		try {
+			css = await requestSkinStylesheet(skin);
+			localStorage.setItem(stylesheetCacheKeyPrefix + skin, css);
+		} catch (error) {
+			css = localStorage.getItem(stylesheetCacheKeyPrefix + skin) || '';
+			if (!css) {
+				throw error;
+			}
+		}
+		const style = document.createElement('style');
+		style.id = 'HWrunnerStyles';
+		style.textContent = css;
+		document.head.appendChild(style);
 	}
 
 	/**
@@ -7010,7 +7193,6 @@
 			if (this.isInit) {
 				return;
 			}
-			addStyle();
 			addBlocks();
 			addEventListeners();
 			this.isInit = true;
@@ -7027,345 +7209,6 @@
 					}
 				}
 			});
-		}
-
-		const addStyle = () => {
-			let style = document.createElement('style');
-			style.innerText = `
-	.PopUp_ {
- 		position: fixed;
-		left: 50%;
-		top: 50%;
-		transform: translate(-50%, -50%);
-		min-width: 300px;
-		max-width: 80%;
-		max-height: 80%;
-		background-color: #190e08e6;
-		z-index: 10001;
-		border: 3px #ce9767 solid;
-		border-radius: 10px;
-		display: flex;
-		flex-direction: column;
-		justify-content: space-around;
-		padding: 15px 9px;
-		box-sizing: border-box;
-	}
-
-	.PopUp_back {
-		position: absolute;
-		background-color: #00000066;
-		width: 100%;
-		height: 100%;
-		z-index: 10000;
-		top: 0;
-		left: 0;
-	}
-
-	.PopUp_close {
-		width: 40px;
-		height: 40px;
-		position: absolute;
-		right: -18px;
-		top: -18px;
-		border: 3px solid #c18550;
-		border-radius: 20px;
-		background: radial-gradient(circle, rgba(190,30,35,1) 0%, rgba(0,0,0,1) 100%);
-		background-position-y: 3px;
-		box-shadow: -1px 1px 3px black;
-		cursor: pointer;
-		box-sizing: border-box;
-	}
-
-	.PopUp_close:hover {
-		filter: brightness(1.2);
-	}
-
-	.PopUp_crossClose {
-		width: 100%;
-		height: 100%;
-		background-size: 65%;
-		background-position: center;
-		background-repeat: no-repeat;
-		background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='%23f4cd73' d='M 0.826 12.559 C 0.431 12.963 3.346 15.374 3.74 14.97 C 4.215 15.173 8.167 10.457 7.804 10.302 C 7.893 10.376 11.454 14.64 11.525 14.372 C 12.134 15.042 15.118 12.086 14.638 11.689 C 14.416 11.21 10.263 7.477 10.402 7.832 C 10.358 7.815 11.731 7.101 14.872 3.114 C 14.698 2.145 13.024 1.074 12.093 1.019 C 11.438 0.861 8.014 5.259 8.035 5.531 C 7.86 5.082 3.61 1.186 3.522 1.59 C 2.973 1.027 0.916 4.611 1.17 4.873 C 0.728 4.914 5.088 7.961 5.61 7.995 C 5.225 7.532 0.622 12.315 0.826 12.559 Z'/%3e%3c/svg%3e")
-	}
-
-	.PopUp_blocks {
-		width: 100%;
-		height: 50%;
-		display: flex;
-		justify-content: space-evenly;
-		align-items: center;
-		flex-wrap: wrap;
-	}
-
-	.PopUp_blocks:last-child {
-		margin-top: 25px;
-	}
-
-	.PopUp_input {
-		text-align: center;
-		font-size: 16px;
-		height: 27px;
-		width: 100%;
-		border: 0px solid #cf9250;
-		border-radius: 9px 9px 0px 0px;
-		background: #170d07;
-		color: #fce1ac;
-		box-sizing: border-box;
-	}
-
-	.PopUp_checkboxes {
-		display: flex;
-		flex-direction: column;
-		margin: 15px 15px -5px 15px;
-		align-items: flex-start;
-	}
-
-	.PopUp_ContCheckbox {
-		margin: 2px 0px;
-	}
-
-	.PopUp_checkbox {
-		position: absolute;
-		z-index: -1;
-		opacity: 0;
-	}
-	.PopUp_checkbox+label {
-		display: inline-flex;
-		align-items: center;
-		user-select: none;
-
-		font-size: 15px;
-		font-family: sans-serif;
-		font-weight: 600;
-		font-stretch: condensed;
-		letter-spacing: 1px;
-		color: #fce1ac;
-		text-shadow: 0px 0px 1px;
-	}
-	.PopUp_checkbox+label::before {
-		content: '';
-		display: inline-block;
-		width: 20px;
-		height: 20px;
-		border: 1px solid #cf9250;
-		border-radius: 7px;
-		margin-right: 7px;
-	}
-	.PopUp_checkbox:checked+label::before {
-		background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3e%3cpath fill='%2388cb13' d='M6.564.75l-3.59 3.612-1.538-1.55L0 4.26 2.974 7.25 8 2.193z'/%3e%3c/svg%3e");
-	}
-	.PopUp_checkbox[class*="radio_"] + label::before {
-		border-radius: 50%;
-	}
-
-	.PopUp_input::placeholder {
-		color: #fce1ac75;
-	}
-
-	.PopUp_input:focus {
-		outline: 0;
-	}
-
-	.PopUp_input + .PopUp_button {
-		border-radius: 0px 0px 5px 5px;
-		padding: 2px 18px 5px;
-	}
-
-	.PopUp_text {
-		font-size: 22px;
-		font-family: sans-serif;
-		font-weight: 600;
-		font-stretch: condensed;
-		letter-spacing: 1px;
-		text-align: center;
-		color: #FDE5B6;
-		text-shadow: 0px 0px 2px;
-		margin: 0 20px;
-	}
-
-	.PopUp_hideBlock {
-		display: none;
-	}
-
-	.PopUp_Container {
-		max-height: 80vh;
-		overflow-y: auto;
-		overflow-x: hidden;
-		scrollbar-width: thin;
-		scrollbar-color: #774d10 #05040300;
-	}
-
-	.PopUp_btnSocket {
-		margin: 3px 1px;
-		position: relative;
-		display: flex;
-		padding: 4px 4px 4px 3px;
-		flex-direction: column;
-		align-items: flex-start;
-		border-radius: 9px;
-		background: #a37738;
-		box-shadow: 0px -1px 1px 0px #7d5b3a inset, 0px 1px 1px 0px #e1a960 inset,
-			-1px 0px 1px 0px #311d13 inset;
-	}
-	.PopUp_btnRow {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		align-self: stretch;
-		width: 100%;
-		flex-wrap: wrap;
-	}
-	.PopUp_btnGap {
-		position: relative;
-		display: flex;
-		padding: 0px 1px 4px 1px;
-		flex-direction: column;
-		align-items: flex-start;
-		gap: 2px;
-		border-radius: 5px;
-		cursor: pointer;
-		flex: auto;
-		transition: all 0.1s ease;
-
-		--h: 36;
-		--s: 60%;
-		--l: 10%;
-		--pl: 50%;
-		--pcl: 90%;
-		--phl: 55%;
-		--pal: 34%;
-		--pacl: 71%;
-		--sc: hsl(36, 88%, 7%);
-	}
-	.PopUp_btnGap:first-child,
-	.PopUp_btnGap.left {
-		padding-left: 2px;
-	}
-	.PopUp_btnGap:last-child,
-	.PopUp_btnGap.right {
-		padding-right: 3px;
-	}
-	.PopUp_btnGap {
-		background: hsl(var(--h), var(--s), var(--l));
-		box-shadow: 0px 0px 2px 0px var(--sc), 0px -1px 2px 0px var(--sc),
-			0px 1px 1px 0px hsl(var(--h), var(--s), 12%);
-	}
-	.PopUp_btnPlate {
-		display: flex;
-		height: 13px;
-		padding: 12px 10px;
-		box-sizing: content-box;
-		justify-content: center;
-		align-items: center;
-		align-self: stretch;
-		gap: 10px;
-		border-radius: 4px;
-		filter: blur(0.2px);
-		transition: all 0.1s ease;
-		text-shadow: 0px 1px 0px rgba(0, 0, 0, 0.92);
-		font-family: Arial;
-		font-size: 14px;
-		font-style: normal;
-		font-weight: 700;
-		line-height: normal;
-		color: hsla(var(--h), var(--s), var(--pcl), 1);
-		background: hsla(var(--h), var(--s), var(--pl), 1);
-		box-shadow: 0px 10px 12px 0px hsla(var(--h), 58%, 67%, 0.2) inset,
-			0px 2px 1px 0px hsl(var(--h), 78%, 77%) inset,
-			0px 2px 0px 0px hsl(var(--h), 78%, 37%) inset,
-			-8px 3px 15px 0px hsl(var(--h), 94%, 15%) inset,
-			8px -7px 15px 0px hsla(var(--h), 94%, 15%, 0.7) inset,
-			0px 0px 2px 0px hsl(var(--h), 68%, 23%),
-			0px -3px 8px 0px hsl(var(--h), 94%, 20%) inset;
-		min-width: 65px;
-	}
-	.PopUp_btnPlate:hover {
-		color: hsla(0, 0%, 96%, 1);
-		background: hsla(var(--h), 49%, var(--phl), 1);
-	}
-	.PopUp_btnGap:active {
-		padding-top: 1px;
-		padding-bottom: 3px;
-		background: hsl(var(--h), var(--s), var(--l));
-		box-shadow: 0px 0px 2px 0px var(--sc), 0px -1px 2px 0px var(--sc),
-			0px 1px 1px 0px hsl(var(--h), var(--s), 12%);
-	}
-	.PopUp_btnPlate:active {
-		color: hsla(var(--h), 47%, var(--pacl), 1);
-		background: hsl(var(--h), 46%, var(--pal));
-	}
-
-	.PopUp_btnGap.brown {
-		--pl: 40%;
-		--pcl: 85%;
-		--s: 60%;
-	}
-	.PopUp_btnGap.green {
-		--h: 120;
-	}
-	.PopUp_btnGap.blue {
-		--h: 207;
-	}
-	.PopUp_btnGap.violet {
-		--h: 272;
-	}
-	.PopUp_btnGap.yellow {
-		--h: 45;
-	}
-	.PopUp_btnGap.orange {
-		--h: 20;
-	}
-	.PopUp_btnGap.indigo {
-		--h: 255;
-	}
-	.PopUp_btnGap.black {
-		--h: 0;
-		--s: 0%;
-		--l: 10%;
-		--pl: 20%;
-		--pcl: 85%;
-		--phl: 25%;
-		--pal: 15%;
-		--pacl: 71%;
-		--sc: hsl(0, 0%, 5%);
-	}
-	.PopUp_btnGap.pink {
-		--h: 330;
-	}
-	.PopUp_btnGap.red {
-		--h: 0;
-	}
-	.PopUp_btnGap.graphite {
-		background: hsl(0, 0%, 12%);
-		box-shadow: 0px 0px 2px 0px hsl(0, 0%, 7%), 0px -1px 2px 0px hsl(0, 0%, 7%),
-			0px 1px 1px 0px hsl(0, 0%, 12%);
-	}
-	.PopUp_btnGap.graphite .PopUp_btnPlate {
-		color: hsla(0, 0%, 85%, 1);
-		background: hsla(0, 0%, 54%, 1);
-		box-shadow: 0px 10px 12px 0px hsla(0, 0%, 67%, 0.2) inset,
-			0px 2px 1px 0px hsl(0, 0%, 67%) inset,
-			-8px 3px 15px 0px hsla(0, 0%, 15%, 0.7) inset,
-			8px -7px 15px 0px hsla(0, 0%, 15%, 0.7) inset,
-			0px 0px 2px 0px hsla(0, 0%, 23%, 0.3),
-			0px -3px 8px 0px hsla(0, 0%, 13%, 0.3) inset;
-	}
-	.PopUp_btnGap.graphite .PopUp_btnPlate:hover {
-		color: hsla(0, 0%, 96%, 1);
-		background: hsla(0, 0%, 62%, 1);
-	}
-	.PopUp_btnGap.graphite:active {
-		background: hsl(0, 0%, 12%);
-		box-shadow: 0px 0px 2px 0px hsl(0, 0%, 7%), 0px -1px 2px 0px hsl(0, 0%, 7%),
-			0px 1px 1px 0px hsl(0, 0%, 12%);
-	}
-	.PopUp_btnGap.graphite .PopUp_btnPlate:active {
-		color: hsla(0, 0%, 71%, 1);
-		background: hsl(0, 0%, 34%);
-	}
-	`;
-			document.head.appendChild(style);
 		}
 
 		const addBlocks = () => {
@@ -7704,414 +7547,8 @@
 			this.option = Object.assign(this.option, option);
 			const saveOption = this.loadSaveOption();
 			this.option = Object.assign(this.option, saveOption);
-			this.addStyle();
 			this.addBlocks();
 			this.emit('afterInit', option);
-		}
-
-		addStyle() {
-			const style = document.createElement('style');
-			style.innerText = `
-		.scriptMenu_status {
-			position: absolute;
-			z-index: 10001;
-			top: -1px;
-			left: 30%;
-			cursor: pointer;
-			border-radius: 0px 0px 10px 10px;
-			background: #190e08e6;
-			border: 1px #ce9767 solid;
-			font-size: 18px;
-			font-family: sans-serif;
-			font-weight: 600;
-			color: #fce1ac;
-			text-shadow: 0px 0px 1px;
-			transition: 0.5s;
-			padding: 2px 10px 3px;
-		}
-		.scriptMenu_statusHide {
-			top: -35px;
-			height: 30px;
-			overflow: hidden;
-		}
-		.scriptMenu_label {
-			position: absolute;
-			top: 30%;
-			left: -4px;
-			z-index: 9999;
-			cursor: pointer;
-			width: 30px;
-			height: 30px;
-			background: radial-gradient(circle, #47a41b 0%, #1a2f04 100%);
-			border: 1px solid #1a2f04;
-			border-radius: 5px;
-			box-shadow:
-				inset 0px 2px 4px #83ce26,
-				inset 0px -4px 6px #1a2f04,
-				0px 0px 2px black,
-				0px 0px 0px 2px #ce9767;
-		}
-		.scriptMenu_label:hover {
-			filter: brightness(1.2);
-		}
-		.scriptMenu_arrowLabel {
-			width: 100%;
-			height: 100%;
-			background-size: 75%;
-			background-position: center;
-			background-repeat: no-repeat;
-			background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='%2388cb13' d='M7.596 7.304a.802.802 0 0 1 0 1.392l-6.363 3.692C.713 12.69 0 12.345 0 11.692V4.308c0-.653.713-.998 1.233-.696l6.363 3.692Z'/%3e%3cpath fill='%2388cb13' d='M15.596 7.304a.802.802 0 0 1 0 1.392l-6.363 3.692C8.713 12.69 8 12.345 8 11.692V4.308c0-.653.713-.998 1.233-.696l6.363 3.692Z'/%3e%3c/svg%3e");
-			box-shadow: 0px 1px 2px #000;
-			border-radius: 5px;
-			filter: drop-shadow(0px 1px 2px #000D);
-		}
-		.scriptMenu_main {
-			position: absolute;
-			max-width: 285px;
-			z-index: 9999;
-			top: 50%;
-			transform: translateY(-40%);
-			background: #190e08e6;
-			border: 1px #ce9767 solid;
-			border-radius: 0px 10px 10px 0px;
-			border-left: none;
-			box-sizing: border-box;
-			font-size: 15px;
-			font-family: sans-serif;
-			font-weight: 600;
-			color: #fce1ac;
-			text-shadow: 0px 0px 1px;
-			transition: 1s;
-		}
-		.scriptMenu_conteiner {
-			max-height: 80vh;
-			overflow: scroll;
-			scrollbar-width: none; /* Firefox */
-			-ms-overflow-style: none; /* IE/Edge */
-			display: flex;
-			flex-direction: column;
-			flex-wrap: nowrap;
-			padding: 5px 10px 5px 5px;
-		}
-		.scriptMenu_conteiner::-webkit-scrollbar {
-			display: none; /* Chrome/Safari/Opera */
-		}
-		.scriptMenu_showMenu {
-			display: none;
-		}
-		.scriptMenu_showMenu:checked ~ .scriptMenu_main {
-			left: 0px;
-		}
-		.scriptMenu_showMenu:not(:checked) ~ .scriptMenu_main {
-			left: -300px;
-		}
-
-		.scriptMenu_divInput {
-			margin: 2px;
-		}
-		.scriptMenu_divInputText {
-			margin: 2px;
-			align-self: center;
-			display: flex;
-		}
-		.scriptMenu_checkbox {
-			position: absolute;
-			z-index: -1;
-			opacity: 0;
-		}
-		.scriptMenu_checkbox + label {
-			display: inline-flex;
-			align-items: center;
-			user-select: none;
-		}
-		.scriptMenu_checkbox + label::before {
-			content: '';
-			display: inline-block;
-			width: 20px;
-			height: 20px;
-			border: 1px solid #cf9250;
-			border-radius: 7px;
-			margin-right: 7px;
-		}
-		.scriptMenu_checkbox:checked + label::before {
-			background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3e%3cpath fill='%2388cb13' d='M6.564.75l-3.59 3.612-1.538-1.55L0 4.26 2.974 7.25 8 2.193z'/%3e%3c/svg%3e");
-		}
-
-		.scriptMenu_close {
-			width: 40px;
-			height: 40px;
-			position: absolute;
-			right: -18px;
-			top: -18px;
-			border: 3px solid #c18550;
-			border-radius: 20px;
-			background: radial-gradient(circle, rgba(190,30,35,1) 0%, rgba(0,0,0,1) 100%);
-			background-position-y: 3px;
-			box-shadow: -1px 1px 3px black;
-			cursor: pointer;
-			box-sizing: border-box;
-			z-index: 1;
-		}
-		.scriptMenu_close:hover {
-			filter: brightness(1.2);
-		}
-		.scriptMenu_crossClose {
-			width: 100%;
-			height: 100%;
-			background-size: 65%;
-			background-position: center;
-			background-repeat: no-repeat;
-			background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='%23f4cd73' d='M 0.826 12.559 C 0.431 12.963 3.346 15.374 3.74 14.97 C 4.215 15.173 8.167 10.457 7.804 10.302 C 7.893 10.376 11.454 14.64 11.525 14.372 C 12.134 15.042 15.118 12.086 14.638 11.689 C 14.416 11.21 10.263 7.477 10.402 7.832 C 10.358 7.815 11.731 7.101 14.872 3.114 C 14.698 2.145 13.024 1.074 12.093 1.019 C 11.438 0.861 8.014 5.259 8.035 5.531 C 7.86 5.082 3.61 1.186 3.522 1.59 C 2.973 1.027 0.916 4.611 1.17 4.873 C 0.728 4.914 5.088 7.961 5.61 7.995 C 5.225 7.532 0.622 12.315 0.826 12.559 Z'/%3e%3c/svg%3e")
-		}
-
-		.scriptMenu_header {
-			text-align: center;
-			align-self: center;
-			font-size: 15px;
-			margin: 0px 15px;
-		}
-		.scriptMenu_header a {
-			color: #fce5b7;
-			text-decoration: none;
-		}
-		.scriptMenu_languageHeader {
-			margin: 4px 15px 2px;
-		}
-		.scriptMenu_language {
-			min-width: 132px;
-			height: 25px;
-			border: 1px solid #cf9250;
-			border-radius: 5px;
-			background: #190e08;
-			color: #fce1ac;
-			font: inherit;
-			font-weight: 600;
-			text-align: center;
-			cursor: pointer;
-		}
-		.scriptMenu_language:focus {
-			outline: 1px solid #fce1ac;
-		}
-		.scriptMenu_InputText {
-			text-align: center;
-			width: 130px;
-			height: 24px;
-			border: 1px solid #cf9250;
-			border-radius: 9px;
-			background: transparent;
-			color: #fce1ac;
-			padding: 0px 10px;
-			box-sizing: border-box;
-		}
-		.scriptMenu_InputText:focus {
-			filter: brightness(1.2);
-			outline: 0;
-		}
-		.scriptMenu_InputText::placeholder {
-			color: #fce1ac75;
-		}
-		.scriptMenu_Summary {
-			cursor: pointer;
-			margin-left: 7px;
-		}
-		.scriptMenu_Details {
-			align-self: center;
-		}
-
-		.scriptMenu_btnSocket {
-			position: relative;
-			display: flex;
-			padding: 4px 4px 4px 3px;
-			flex-direction: column;
-			align-items: flex-start;
-			border-radius: 9px;
-			background: #a37738;
-			box-shadow: 0px -1px 1px 0px #7d5b3a inset, 0px 1px 1px 0px #e1a960 inset,
-				-1px 0px 1px 0px #311d13 inset;
-		}
-		.scriptMenu_btnRow {
-			display: flex;
-			justify-content: space-between;
-			align-items: center;
-			align-self: stretch;
-			width: 100%;
-		}
-		.scriptMenu_btnGap {
-			position: relative;
-			display: flex;
-			padding: 0px 1px 4px 1px;
-			flex-direction: column;
-			align-items: flex-start;
-			gap: 2px;
-			border-radius: 5px;
-			cursor: pointer;
-			flex: auto;
-			transition: all 0.1s ease;
-
-			--h: 36;
-			--s: 60%;
-			--l: 10%;
-			--pl: 50%;
-			--pcl: 90%;
-			--phl: 55%;
-			--pal: 34%;
-			--pacl: 71%;
-			--sc: hsl(36, 88%, 7%);
-		}
-		.scriptMenu_btnGap:first-child,
-		.scriptMenu_btnGap.left {
-			padding-left: 2px;
-		}
-		.scriptMenu_btnGap:last-child,
-		.scriptMenu_btnGap.right {
-			padding-right: 3px;
-		}
-		.scriptMenu_btnGap {
-			background: hsl(var(--h), var(--s), var(--l));
-			box-shadow: 0px 0px 2px 0px var(--sc), 0px -1px 2px 0px var(--sc),
-				0px 1px 1px 0px hsl(var(--h), var(--s), 12%);
-		}
-		.scriptMenu_btnPlate {
-			display: flex;
-			height: 13px;
-			padding: 12px 10px;
-			box-sizing: content-box;
-			justify-content: center;
-			align-items: center;
-			align-self: stretch;
-			gap: 10px;
-			border-radius: 4px;
-			filter: blur(0.2px);
-			transition: all 0.1s ease;
-			text-shadow: 0px 1px 0px rgba(0, 0, 0, 0.92);
-			font-family: Arial;
-			font-size: 14px;
-			font-style: normal;
-			font-weight: 700;
-			line-height: normal;
-			color: hsla(var(--h), var(--s), var(--pcl), 1);
-			background: hsla(var(--h), var(--s), var(--pl), 1);
-			box-shadow: 0px 10px 12px 0px hsla(var(--h), 58%, 67%, 0.2) inset,
-				0px 2px 1px 0px hsl(var(--h), 78%, 77%) inset,
-				0px 2px 0px 0px hsl(var(--h), 78%, 37%) inset,
-				-8px 3px 15px 0px hsl(var(--h), 94%, 15%) inset,
-				8px -7px 15px 0px hsla(var(--h), 94%, 15%, 0.7) inset,
-				0px 0px 2px 0px hsl(var(--h), 68%, 23%),
-				0px -3px 8px 0px hsl(var(--h), 94%, 20%) inset;
-		}
-		.scriptMenu_btnPlate:hover {
-			color: hsla(0, 0%, 96%, 1);
-			background: hsla(var(--h), 49%, var(--phl), 1);
-		}
-		.scriptMenu_btnGap:active {
-			padding-top: 1px;
-			padding-bottom: 3px;
-			background: hsl(var(--h), var(--s), var(--l));
-			box-shadow: 0px 0px 2px 0px var(--sc), 0px -1px 2px 0px var(--sc),
-				0px 1px 1px 0px hsl(var(--h), var(--s), 12%);
-		}
-		.scriptMenu_btnPlate:active {
-			color: hsla(var(--h), 47%, var(--pacl), 1);
-			background: hsl(var(--h), 46%, var(--pal));
-		}
-
-		.scriptMenu_btnGap.brown {
-			--pl: 40%;
-			--pcl: 85%;
-			--s: 60%;
-		}
-		.scriptMenu_btnGap.green {
-			--h: 120;
-		}
-		.scriptMenu_btnGap.blue {
-			--h: 207;
-		}
-		.scriptMenu_btnGap.violet {
-			--h: 272;
-		}
-		.scriptMenu_btnGap.yellow {
-			--h: 45;
-		}
-		.scriptMenu_btnGap.orange {
-			--h: 20;
-		}
-		.scriptMenu_btnGap.indigo {
-			--h: 255;
-		}
-		.scriptMenu_btnGap.black {
-			--h: 0;
-			--s: 0%;
-			--l: 10%;
-			--pl: 20%;
-			--pcl: 85%;
-			--phl: 25%;
-			--pal: 15%;
-			--pacl: 71%;
-			--sc: hsl(0, 0%, 5%);
-		}
-		.scriptMenu_btnGap.pink {
-			--h: 330;
-		}
-		.scriptMenu_btnGap.red {
-			--h: 0;
-		}
-		.scriptMenu_btnGap.graphite {
-			background: hsl(0, 0%, 12%);
-			box-shadow: 0px 0px 2px 0px hsl(0, 0%, 7%), 0px -1px 2px 0px hsl(0, 0%, 7%),
-				0px 1px 1px 0px hsl(0, 0%, 12%);
-		}
-		.scriptMenu_btnGap.graphite .scriptMenu_btnPlate {
-			color: hsla(0, 0%, 85%, 1);
-			background: hsla(0, 0%, 54%, 1);
-			box-shadow: 0px 10px 12px 0px hsla(0, 0%, 67%, 0.2) inset,
-				0px 2px 1px 0px hsl(0, 0%, 67%) inset,
-				-8px 3px 15px 0px hsla(0, 0%, 15%, 0.7) inset,
-				8px -7px 15px 0px hsla(0, 0%, 15%, 0.7) inset,
-				0px 0px 2px 0px hsla(0, 0%, 23%, 0.3),
-				0px -3px 8px 0px hsla(0, 0%, 13%, 0.3) inset;
-		}
-		.scriptMenu_btnGap.graphite .scriptMenu_btnPlate:hover {
-			color: hsla(0, 0%, 96%, 1);
-			background: hsla(0, 0%, 62%, 1);
-		}
-		.scriptMenu_btnGap.graphite:active {
-			background: hsl(0, 0%, 12%);
-			box-shadow: 0px 0px 2px 0px hsl(0, 0%, 7%), 0px -1px 2px 0px hsl(0, 0%, 7%),
-				0px 1px 1px 0px hsl(0, 0%, 12%);
-		}
-		.scriptMenu_btnGap.graphite .scriptMenu_btnPlate:active {
-			color: hsla(0, 0%, 71%, 1);
-			background: hsl(0, 0%, 34%);
-		}
-
-		.scriptMenu_attention {
-			position: relative;
-		}
-		.scriptMenu_attention .scriptMenu_dot {
-			display: flex;
-			justify-content: center;
-			align-items: center;
-		}
-		.scriptMenu_dot {
-			position: absolute;
-			top: -7px;
-			right: -7px;
-			width: 20px;
-			height: 20px;
-			border-radius: 50%;
-			border: 1px solid #c18550;
-			background: radial-gradient(circle, #f000 25%, black 100%);
-			box-shadow: 0px 0px 2px black;
-			background-position: 0px -1px;
-			font-size: 10px;
-			text-align: center;
-			color: white;
-			text-shadow: 1px 1px 1px black;
-			box-sizing: border-box;
-			display: none;
-		}
-	`;
-			document.head.appendChild(style);
 		}
 
 		addBlocks() {
@@ -13800,40 +13237,6 @@
 
 	this.HWHClasses.ExecuteCompany = ExecuteCompany;
 
-	function ensureGearFarmStyles() {
-		if (document.getElementById('HWrunnerGearFarmStyles')) {
-			return;
-		}
-		const style = document.createElement('style');
-		style.id = 'HWrunnerGearFarmStyles';
-		style.textContent = `
-			.GearFarm_popup { width: min(980px, calc(100vw - 64px)); max-width: none; max-height: min(720px, calc(100vh - 48px)); padding: 18px; }
-			.GearFarm_popup .PopUp_msgText { display: none; }
-			.GearFarm_board { min-height: 500px; padding: 18px; border: 2px solid #8e5a21; background: #160b06ef; box-shadow: inset 0 0 0 2px #3d2110; }
-			.GearFarm_controls { display: flex; justify-content: center; flex-wrap: wrap; gap: 18px; margin: 0 0 18px; padding-bottom: 16px; border-bottom: 2px solid #6e401b; }
-			.GearFarm_field { display: grid; grid-template-columns: auto 120px; align-items: center; gap: 8px; color: #fde5b6; font: 700 18px sans-serif; text-shadow: 0 2px 2px #000; }
-			.GearFarm_field input { width: 100%; box-sizing: border-box; border: 2px solid #a77332; background: #170c06; color: #fde5b6; font: 700 18px sans-serif; line-height: 30px; text-align: center; }
-			.GearFarm_run { min-width: 120px; align-self: center; }
-			.GearFarm_title { margin: 0 0 18px; text-align: center; color: #fde5b6; font: 700 28px sans-serif; text-shadow: 0 2px 2px #000; }
-			.GearFarm_grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; max-height: 480px; padding: 4px; overflow-y: auto; }
-			.GearFarm_slot { position: relative; aspect-ratio: 1; min-width: 0; padding: 0; border: 3px solid #6e401b; background: #120906; box-shadow: inset 0 0 0 2px #a77332, 0 2px 3px #000; }
-			.GearFarm_slot.GearFarm_selected { border-color: #88cb13; box-shadow: inset 0 0 0 2px #d7ea45, 0 0 8px #5ca615; }
-			.GearFarm_slot.GearFarm_disabled { opacity: .35; }
-			.GearFarm_slot img { width: 100%; height: 100%; object-fit: contain; display: block; }
-			.GearFarm_heroLevel { position: absolute; z-index: 1; top: -10px; left: 50%; min-width: 28px; padding: 1px 5px; transform: translateX(-50%); border: 2px solid #b98a3b; border-radius: 4px; background: #1a120c; box-shadow: 0 1px 2px #000; color: #f6e8c2; font: 700 18px sans-serif; line-height: 20px; text-align: center; text-shadow: 0 1px 1px #000; }
-			.GearFarm_priority { position: absolute; z-index: 1; left: -6px; bottom: -6px; min-width: 27px; height: 27px; display: grid; place-items: center; border: 2px solid #c89142; border-radius: 50%; background: #170c06; box-shadow: 0 1px 2px #000; color: #f8dc9a; font: 700 17px sans-serif; text-shadow: 0 1px 1px #000; }
-			.GearFarm_autoEquip { position: absolute; z-index: 1; right: -5px; bottom: -5px; width: 22px; height: 22px; box-sizing: border-box; margin: 0; appearance: none; border: 2px solid #c89142; background: #170c06; box-shadow: 0 1px 2px #000; cursor: pointer; }
-			.GearFarm_autoEquip:checked::after { content: '✓'; display: block; color: #88cb13; font: 700 23px sans-serif; line-height: 16px; text-align: center; text-shadow: 0 1px 1px #000; }
-			@media (max-width: 760px) {
-				.GearFarm_popup { width: calc(100vw - 24px); padding: 12px; }
-				.GearFarm_board { min-height: 0; padding: 12px; }
-				.GearFarm_grid { grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 8px; }
-				.GearFarm_field { grid-template-columns: 1fr; gap: 4px; text-align: center; }
-			}
-		`;
-		document.head.append(style);
-	}
-
 	/** Plans raids for the missing gear of one hero without spending premium currency. */
 	class GearFarmer {
 		getHeroName(heroId) {
@@ -13870,7 +13273,6 @@
 		}
 
 		async configurePriorities() {
-			ensureGearFarmStyles();
 			const [allHeroes, inventory, missions, userInfo] = await Caller.send(['heroGetAll', 'inventoryGet', 'missionGetAll', 'userGetInfo']);
 			const heroes = Object.values(allHeroes)
 				.map((hero) => {
