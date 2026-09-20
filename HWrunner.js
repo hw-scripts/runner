@@ -1,28 +1,60 @@
 (function () {
-	let extensionRequestId = 0;
-
-	const runnerInfo = (() => {
-		const id = `HWrunnerInfo_${Date.now()}`;
-		let info = null;
-		const onResponse = (event) => {
-			if (event.detail?.id === id) {
-				info = event.detail.runnerInfo;
+	// Manifest data
+	const runnerManifest =
+		//#region Bridge to manifest
+		// Get extension data from manifest
+		(() => {
+			const id = `HWrunnerManifest_${Date.now()}`;
+			let info = null;
+			const onResponse = (event) => {
+				if (event.detail?.id === id) {
+					info = event.detail.manifest;
+				}
+			};
+			window.addEventListener('HWrunner:extension-info-response', onResponse);
+			window.dispatchEvent(new CustomEvent('HWrunner:extension-info-request', { detail: { id } }));
+			window.removeEventListener('HWrunner:extension-info-response', onResponse);
+			if (!info) {
+				throw new Error('HWrunner extension bridge is unavailable');
 			}
-		};
-		window.addEventListener('HWrunner:extension-info-response', onResponse);
-		window.dispatchEvent(new CustomEvent('HWrunner:extension-info-request', { detail: { id } }));
-		window.removeEventListener('HWrunner:extension-info-response', onResponse);
-		if (!info) {
-			throw new Error('HWrunner extension bridge is unavailable');
-		}
-		return Object.freeze(info);
-	})();
+			return Object.freeze(info);
+		})();
 
-	/**
-	  * Original methods for working with AJAX
-	  *
-	  */
-	const original = {
+	// Bridge request
+	let extensionRequestId = 0;
+	function extensionXmlHttpRequest(options) {
+		const id = `HWrunnerRequest_${Date.now()}_${++extensionRequestId}`;
+		const responseEvent = 'HWrunner:extension-response';
+		const onResponse = (event) => {
+			if (event.detail?.id !== id) {
+				return;
+			}
+			window.removeEventListener(responseEvent, onResponse);
+			if (event.detail.error) {
+				options.onerror?.(new Error(event.detail.error.message || 'Request failed'));
+				return;
+			}
+			options.onload?.(event.detail.response);
+		};
+		window.addEventListener(responseEvent, onResponse);
+		window.dispatchEvent(new CustomEvent('HWrunner:extension-request', {
+			detail: {
+				id,
+				request: {
+					method: options.method,
+					url: options.url,
+					headers: options.headers,
+					data: options.data,
+				},
+			},
+		}));
+	}
+	//#endregion
+
+	// Original methods for working with AJAX
+	const original =
+	//#region Overriding the methods for sending requests to the server and receiving responses
+	{
 		open: XMLHttpRequest.prototype.open,
 		send: XMLHttpRequest.prototype.send,
 		setRequestHeader: XMLHttpRequest.prototype.setRequestHeader,
@@ -30,14 +62,16 @@
 		fetch: fetch,
 	};
 
-	// Sentry blocking
+	// Make fetch with some blocking
+	const blockUrls = [
+		"sentry.io",
+		"example.com/analytics",
+		"/telemetry/",
+		"otel-collector.hwd.prod.nexters.team"
+	]; // List of blocked URLs
 	this.fetch = function (url, options) {
-		/**
-		 * Checking URL for blocking
-		 */
-		if (url.includes('sentry.io')) {
-			console.log('%cFetch blocked', 'color: red');
-			console.log(url, options);
+		if (blockUrls && blockUrls.some(mask => url.includes(mask))) {
+			console.log('%cFetch blocked', 'color: red'); console.log(url, options);
 			const body = {
 				id: md5(Date.now()),
 			};
@@ -66,46 +100,251 @@
 		}
 	};
 
-	function extensionXmlHttpRequest(options) {
-		const id = `HWrunnerRequest_${Date.now()}_${++extensionRequestId}`;
-		const responseEvent = 'HWrunner:extension-response';
-		const onResponse = (event) => {
-			if (event.detail?.id !== id) {
-				return;
+	// Override/proxy the method for creating a WS package send
+	WebSocket.prototype.send = function (data) {
+		if (!this.isSetOnMessage) {
+			const oldOnmessage = this.onmessage;
+			this.onmessage = function (event) {
+				let parsedData = null;
+				let messageType = null;
+
+				try {
+					parsedData = JSON.parse(event.data);
+					messageType = parsedData?.result?.type;
+				} catch (e) { }
+
+				if (parsedData) {
+					if (!this.isWebSocketLogin && messageType === 'iframeEvent.login') {
+						this.isWebSocketLogin = true;
+					} else if (messageType === 'iframeEvent.login') {
+						return;
+					}
+				}
+
+				Events.emit('WSMessage', messageType, parsedData?.result, event);
+
+				if (typeof oldOnmessage === 'function') {
+					return oldOnmessage.apply(this, arguments);
+				}
 			}
-			window.removeEventListener(responseEvent, onResponse);
-			if (event.detail.error) {
-				options.onerror?.(new Error(event.detail.error.message || 'Request failed'));
-				return;
-			}
-			options.onload?.(event.detail.response);
-		};
-		window.addEventListener(responseEvent, onResponse);
-		window.dispatchEvent(new CustomEvent('HWrunner:extension-request', {
-			detail: {
-				id,
-				request: {
-					method: options.method,
-					url: options.url,
-					headers: options.headers,
-					data: options.data,
-				},
-			},
-		}));
+			this.isSetOnMessage = true;
+		}
+		original.SendWebSocket.call(this, data);
 	}
+
+	/**
+	 * Overriding/Proxying the Ajax Request Creation Method
+	 *
+	 */
+	XMLHttpRequest.prototype.open = function (method, url, async, user, password) {
+		const urls = ['.nextersglobal.com/api/', '.hero-wars.cn/api/'];
+		this.uniqid = Date.now() + '_' + random(1000000, 10000000);
+		this.errorRequest = false;
+		if (method == 'POST' && urls.some((domain) => url.includes(domain)) && /[rpc|api]\/$/.test(url)) {
+			if (!apiUrl) {
+				apiUrl = url;
+				const socialInfo = /heroes-(.+?)\./.exec(apiUrl);
+				console.log(socialInfo);
+			}
+			requestHistory[this.uniqid] = {
+				method,
+				url,
+				error: [],
+				headers: {},
+				request: null,
+				response: null,
+				signature: [],
+				calls: {},
+			};
+		} else if (method == 'POST' && url.includes('error.nextersglobal.com/client/')) {
+			this.errorRequest = true;
+		}
+		return original.open.call(this, method, url, async, user, password);
+	};
+
+	/**
+	 * Overriding/Proxying the header setting method for the AJAX request
+	 *
+	 */
+	XMLHttpRequest.prototype.setRequestHeader = function (name, value, check) {
+		if (typeof value === 'string') {
+			oasloHeaders[name.toLowerCase()] = value.trim();
+		}
+		if (this.uniqid in requestHistory) {
+			requestHistory[this.uniqid].headers[name] = value;
+			if (name == 'X-Auth-Signature') {
+				requestHistory[this.uniqid].signature.push(value);
+				if (!check) {
+					return;
+				}
+			}
+		} else {
+			check = true;
+		}
+		return original.setRequestHeader.call(this, name, value);
+	};
+
+	/**
+	 * Overriding/Proxying the AJAX Request Sending Method
+	 *
+	 */
+	XMLHttpRequest.prototype.send = async function (sourceData) {
+		if (this.uniqid in requestHistory) {
+			let tempData = null;
+			if (getClass(sourceData) == "ArrayBuffer") {
+				tempData = decoder.decode(sourceData);
+			} else {
+				tempData = sourceData;
+			}
+			requestHistory[this.uniqid].request = tempData;
+			let headers = requestHistory[this.uniqid].headers;
+			lastHeaders = Object.assign({}, headers);
+
+			/**
+			 * Game loading event
+			 *
+			 */
+			if (headers["X-Request-Id"] > 2 && !isLoadGame) {
+				isLoadGame = true;
+				if (cheats.libGame) {
+					lib.setData(cheats.libGame);
+				} else {
+					lib.setData(await cheats.LibLoad());
+				}
+				try {
+					await loadI18n();
+				} catch (error) {
+					console.error('Unable to load interface dictionary', error);
+				}
+				try {
+					await loadStyles();
+				} catch (error) {
+					console.error('Unable to load interface stylesheet', error);
+				}
+				addControls();
+				addControlButtons();
+				// addBottomUrls();
+
+				if (isChecked('sendExpedition')) {
+					const isTimeBetweenDays = isTimeBetweenNewDays();
+					if (!isTimeBetweenDays) {
+						checkExpedition();
+					} else {
+						setProgress(I18N('EXPEDITIONS_NOTTIME'), true);
+					}
+				}
+
+				getAutoGifts();
+
+				cheats.activateHacks();
+
+				justInfo();
+				if (isChecked('dailyQuests')) {
+					testDailyQuests();
+				}
+
+				if (isChecked('buyForGold')) {
+					buyInStoreForGold();
+				}
+
+				Events.emit('startGame', this);
+			}
+
+			/**
+			 * Outgoing request data processing
+			 *
+			 */
+			sourceData = await checkChangeSend.call(this, sourceData, tempData);
+			/**
+			 * Handling incoming request data
+			 *
+			 */
+			const oldReady = this.onreadystatechange;
+			this.onreadystatechange = async function (e) {
+				if (this.errorRequest) {
+					return oldReady.apply(this, arguments);
+				}
+				if (this.readyState == 4 && this.status == 200) {
+					isTextResponse = this.responseType === "text" || this.responseType === "";
+					let response = isTextResponse ? this.responseText : this.response;
+					requestHistory[this.uniqid].response = response;
+					/**
+					 * Replacing incoming request data
+					 *
+					 */
+					if (isTextResponse) {
+						await checkChangeResponse.call(this, response);
+					}
+					/**
+					 * A function to run after the request is executed
+					 *
+					 */
+					if (typeof this.onReadySuccess == 'function') {
+						setTimeout(this.onReadySuccess, 500);
+					}
+					if ('invasion_bossStart' in requestHistory[this.uniqid].calls) delete requestHistory[this.uniqid];
+				}
+				if (oldReady) {
+					try {
+						return oldReady.apply(this, arguments);
+					} catch (e) {
+						console.log(oldReady);
+						console.error('Error in oldReady:', e);
+					}
+
+				}
+			}
+		}
+
+		if (this.errorRequest) {
+			const oldReady = this.onreadystatechange;
+			this.onreadystatechange = function () {
+				Object.defineProperty(this, 'status', {
+					writable: true
+				});
+				this.status = 200;
+				Object.defineProperty(this, 'readyState', {
+					writable: true
+				});
+				this.readyState = 4;
+				Object.defineProperty(this, 'responseText', {
+					writable: true
+				});
+				this.responseText = JSON.stringify({
+					"result": true
+				});
+				if (typeof this.onReadySuccess == 'function') {
+					setTimeout(this.onReadySuccess, 200);
+				}
+				return oldReady.apply(this, arguments);
+			}
+			this.onreadystatechange();
+		} else {
+			try {
+				return original.send.call(this, sourceData);
+			} catch (e) {
+				debugger;
+			}
+
+		}
+	};
+	//#endregion
+
+	// Main function for running the script
+	// Events.on('startGame', runnerProcess);
 
 	/**
 	 * Start script
 	 *
 	 */
-	console.log('%cStart ' + runnerInfo.name + ', v' + runnerInfo.version + ' by ' + runnerInfo.author, 'color: red');
+	console.log('%cStart ' + runnerManifest.name + ', v' + runnerManifest.version + ' by ' + runnerManifest.author, 'color: red');
 	/**
 	 * Script info
 	 *
 	 */
-	this.scriptInfo = (({ name, version, author, homepage, lastModified }, updateUrl) =>
-		({ name, version, author, homepage, lastModified, updateUrl }))
-		(runnerInfo, runnerInfo.updateUrl);
+	this.scriptInfo = (({ name, version, author, homepage_url, lastModified }, updateUrl) =>
+		({ name, version, author, homepage_url, lastModified, updateUrl }))
+		(runnerManifest, runnerManifest.updateUrl);
 	// The quiz checks window.GM_info for the original HeroWarsHelper identity.
 	this.GM_info = Object.freeze({
 		script: Object.freeze({
@@ -116,7 +355,7 @@
 		}),
 		scriptUpdateURL: 'https://update.greasyfork.org/scripts/450693/HeroWarsHelper.meta.js',
 	});
-	
+
 	/**
 	 * Information for completing daily quests
 	 *
@@ -942,10 +1181,10 @@
 					popup.custom.insertAdjacentHTML(
 						'beforeend',
 						`<iframe src="${url}"
-							width="500px"
-							height="500px"
-							frameborder="0">
-					</iframe>`
+								width="500px"
+								height="500px"
+								frameborder="0">
+						</iframe>`
 					);
 					popup.setMsgText(I18N('EXTENSIONS_LIST_TITLE'));
 					popup.addButton({ isClose: true }, () => {
@@ -969,7 +1208,7 @@
 				return I18N('TIDY_INVENTORY');
 			},
 			async result() {
-				const { InventoryTidier } = HWHClasses;
+				const { InventoryTidier } = HWclasses;
 				await new InventoryTidier().run();
 			},
 			get title() {
@@ -1287,7 +1526,7 @@
 					{ msg: I18N('BTN_DO_IT'), result: true, color: 'green' },
 				]);
 				if (result) {
-					const { SeerGame } = this.HWHClasses;
+					const { SeerGame } = this.HWclasses;
 					new SeerGame().start();
 				}
 			},
@@ -1302,7 +1541,7 @@
 	 *
 	 */
 	function addControlButtons() {
-		const { ScriptMenu } = HWHClasses;
+		const { ScriptMenu } = HWclasses;
 		const scriptMenu = ScriptMenu.getInst();
 		const { buttons } = HWHData;
 		for (let name in buttons) {
@@ -1322,7 +1561,7 @@
 	 *
 	 */
 	// function addBottomUrls() {
-	// 	const { ScriptMenu } = HWHClasses;
+	// 	const { ScriptMenu } = HWclasses;
 	// 	const scriptMenu = ScriptMenu.getInst();
 	// 	scriptMenu.addHeader(I18N('BOTTOM_URLS'));
 	// }
@@ -1558,231 +1797,6 @@
 		});
 	}
 	/**
-	 * Override/proxy the method for creating a WS package send
-	 *
-	 */
-	WebSocket.prototype.send = function (data) {
-		if (!this.isSetOnMessage) {
-			const oldOnmessage = this.onmessage;
-			this.onmessage = function (event) {
-				let parsedData = null;
-				let messageType = null;
-
-				try {
-					parsedData = JSON.parse(event.data);
-					messageType = parsedData?.result?.type;
-				} catch (e) { }
-
-				if (parsedData) {
-					if (!this.isWebSocketLogin && messageType === 'iframeEvent.login') {
-						this.isWebSocketLogin = true;
-					} else if (messageType === 'iframeEvent.login') {
-						return;
-					}
-				}
-
-				Events.emit('WSMessage', messageType, parsedData?.result, event);
-
-				if (typeof oldOnmessage === 'function') {
-					return oldOnmessage.apply(this, arguments);
-				}
-			}
-			this.isSetOnMessage = true;
-		}
-		original.SendWebSocket.call(this, data);
-	}
-	/**
-	 * Overriding/Proxying the Ajax Request Creation Method
-	 *
-	 */
-	XMLHttpRequest.prototype.open = function (method, url, async, user, password) {
-		const urls = ['.nextersglobal.com/api/', '.hero-wars.cn/api/'];
-		this.uniqid = Date.now() + '_' + random(1000000, 10000000);
-		this.errorRequest = false;
-		if (method == 'POST' && urls.some((domain) => url.includes(domain)) && /[rpc|api]\/$/.test(url)) {
-			if (!apiUrl) {
-				apiUrl = url;
-				const socialInfo = /heroes-(.+?)\./.exec(apiUrl);
-				console.log(socialInfo);
-			}
-			requestHistory[this.uniqid] = {
-				method,
-				url,
-				error: [],
-				headers: {},
-				request: null,
-				response: null,
-				signature: [],
-				calls: {},
-			};
-		} else if (method == 'POST' && url.includes('error.nextersglobal.com/client/')) {
-			this.errorRequest = true;
-		}
-		return original.open.call(this, method, url, async, user, password);
-	};
-	/**
-	 * Overriding/Proxying the header setting method for the AJAX request
-	 *
-	 */
-	XMLHttpRequest.prototype.setRequestHeader = function (name, value, check) {
-		if (typeof value === 'string') {
-			oasloHeaders[name.toLowerCase()] = value.trim();
-		}
-		if (this.uniqid in requestHistory) {
-			requestHistory[this.uniqid].headers[name] = value;
-			if (name == 'X-Auth-Signature') {
-				requestHistory[this.uniqid].signature.push(value);
-				if (!check) {
-					return;
-				}
-			}
-		} else {
-			check = true;
-		}
-		return original.setRequestHeader.call(this, name, value);
-	};
-	/**
-	 * Overriding/Proxying the AJAX Request Sending Method
-	 *
-	 */
-	XMLHttpRequest.prototype.send = async function (sourceData) {
-		if (this.uniqid in requestHistory) {
-			let tempData = null;
-			if (getClass(sourceData) == "ArrayBuffer") {
-				tempData = decoder.decode(sourceData);
-			} else {
-				tempData = sourceData;
-			}
-			requestHistory[this.uniqid].request = tempData;
-			let headers = requestHistory[this.uniqid].headers;
-			lastHeaders = Object.assign({}, headers);
-			/**
-			 * Game loading event
-			 *
-			 */
-			if (headers["X-Request-Id"] > 2 && !isLoadGame) {
-				isLoadGame = true;
-				if (cheats.libGame) {
-					lib.setData(cheats.libGame);
-				} else {
-					lib.setData(await cheats.LibLoad());
-				}
-				try {
-					await loadI18n();
-				} catch (error) {
-					console.error('Unable to load interface dictionary', error);
-				}
-				try {
-					await loadStyles();
-				} catch (error) {
-					console.error('Unable to load interface stylesheet', error);
-				}
-				addControls();
-				addControlButtons();
-				// addBottomUrls();
-
-				if (isChecked('sendExpedition')) {
-					const isTimeBetweenDays = isTimeBetweenNewDays();
-					if (!isTimeBetweenDays) {
-						checkExpedition();
-					} else {
-						setProgress(I18N('EXPEDITIONS_NOTTIME'), true);
-					}
-				}
-
-				getAutoGifts();
-
-				cheats.activateHacks();
-
-				justInfo();
-				if (isChecked('dailyQuests')) {
-					testDailyQuests();
-				}
-
-				if (isChecked('buyForGold')) {
-					buyInStoreForGold();
-				}
-
-				Events.emit('startGame', this);
-			}
-			/**
-			 * Outgoing request data processing
-			 *
-			 */
-			sourceData = await checkChangeSend.call(this, sourceData, tempData);
-			/**
-			 * Handling incoming request data
-			 *
-			 */
-			const oldReady = this.onreadystatechange;
-			this.onreadystatechange = async function (e) {
-				if (this.errorRequest) {
-					return oldReady.apply(this, arguments);
-				}
-				if (this.readyState == 4 && this.status == 200) {
-					isTextResponse = this.responseType === "text" || this.responseType === "";
-					let response = isTextResponse ? this.responseText : this.response;
-					requestHistory[this.uniqid].response = response;
-					/**
-					 * Replacing incoming request data
-					 *
-					 */
-					if (isTextResponse) {
-						await checkChangeResponse.call(this, response);
-					}
-					/**
-					 * A function to run after the request is executed
-					 *
-					 */
-					if (typeof this.onReadySuccess == 'function') {
-						setTimeout(this.onReadySuccess, 500);
-					}
-					if ('invasion_bossStart' in requestHistory[this.uniqid].calls) delete requestHistory[this.uniqid];
-				}
-				if (oldReady) {
-					try {
-						return oldReady.apply(this, arguments);
-					} catch (e) {
-						console.log(oldReady);
-						console.error('Error in oldReady:', e);
-					}
-
-				}
-			}
-		}
-		if (this.errorRequest) {
-			const oldReady = this.onreadystatechange;
-			this.onreadystatechange = function () {
-				Object.defineProperty(this, 'status', {
-					writable: true
-				});
-				this.status = 200;
-				Object.defineProperty(this, 'readyState', {
-					writable: true
-				});
-				this.readyState = 4;
-				Object.defineProperty(this, 'responseText', {
-					writable: true
-				});
-				this.responseText = JSON.stringify({
-					"result": true
-				});
-				if (typeof this.onReadySuccess == 'function') {
-					setTimeout(this.onReadySuccess, 200);
-				}
-				return oldReady.apply(this, arguments);
-			}
-			this.onreadystatechange();
-		} else {
-			try {
-				return original.send.call(this, sourceData);
-			} catch (e) {
-				debugger;
-			}
-
-		}
-	};
-	/**
 	 * Processing and substitution of outgoing data
 	 *
 	 */
@@ -1867,7 +1881,7 @@
 						const cloneBattle = structuredClone(lastBattleInfo);
 						lastBattleInfo = null;
 						try {
-							const { BestOrWinFixBattle } = HWHClasses;
+							const { BestOrWinFixBattle } = HWclasses;
 							const bFix = new BestOrWinFixBattle(cloneBattle);
 							bFix.setNoMakeWin(noFixWin);
 							let endTime = Date.now() + 3e4;
@@ -1969,7 +1983,7 @@
 							}
 						}
 					}
-					if (isChecked('autoBrawls') && !HWHClasses.executeBrawls.isBrawlsAutoStart && call.name == 'brawl_endBattle') {
+					if (isChecked('autoBrawls') && !HWclasses.executeBrawls.isBrawlsAutoStart && call.name == 'brawl_endBattle') {
 					}
 				}
 				/**
@@ -1977,7 +1991,7 @@
 				 *
 				 */
 				// Save the selected team before an automatic Brawl begins.
-				if (isChecked('autoBrawls') && !HWHClasses.executeBrawls.isBrawlsAutoStart && call.name == 'brawl_startBattle') {
+				if (isChecked('autoBrawls') && !HWclasses.executeBrawls.isBrawlsAutoStart && call.name == 'brawl_startBattle') {
 					console.log(JSON.stringify(call.args));
 					brawlsPack = call.args;
 					if (
@@ -1998,7 +2012,7 @@
 							]
 						)
 					) {
-						HWHClasses.executeBrawls.isBrawlsAutoStart = true;
+						HWclasses.executeBrawls.isBrawlsAutoStart = true;
 						const isAuto = popup.getCheckBoxes().find((e) => e.name === 'isAuto');
 						this.errorRequest = true;
 						testBrawls(isAuto.checked);
@@ -2044,7 +2058,7 @@
 							const endTime = cloneBattle.endTime - 15e3;
 							console.log('fixBossBattleStart');
 
-							const { BossFixBattle } = HWHClasses;
+							const { BossFixBattle } = HWclasses;
 							const bFix = new BossFixBattle(cloneBattle);
 							const result = await bFix.start(endTime, 500);
 							console.log(result);
@@ -2072,7 +2086,7 @@
 							);
 						} else if (resultPopup > 3) {
 							const cloneBattle = structuredClone(lastBossBattle);
-							const { masterFixBattle } = HWHClasses;
+							const { masterFixBattle } = HWclasses;
 							const mFix = new masterFixBattle(cloneBattle);
 							const result = await mFix.start(cloneBattle.endTime, resultPopup);
 							console.log(result);
@@ -3306,7 +3320,7 @@
 	 */
 	function createInterface() {
 		popup.init();
-		const { ScriptMenu } = HWHClasses;
+		const { ScriptMenu } = HWclasses;
 		const scriptMenu = ScriptMenu.getInst();
 		scriptMenu.init();
 		scriptMenu.addHeader(`${GM_info.script.name} ${GM_info.script.version}`, justInfo);
@@ -3458,7 +3472,7 @@
 
 	function addControls() {
 		createInterface();
-		const { ScriptMenu } = HWHClasses;
+		const { ScriptMenu } = HWclasses;
 		const scriptMenu = ScriptMenu.getInst();
 		const settingsDetails = scriptMenu.addDetails(I18N('SETTINGS'), 'settings');
 		settingsDetails.classList.add('scriptMenu_settings');
@@ -3605,7 +3619,7 @@
 	 *
 	 */
 	function hideProgress(timeout) {
-		const { ScriptMenu } = HWHClasses;
+		const { ScriptMenu } = HWclasses;
 		const scriptMenu = ScriptMenu.getInst();
 		clearTimeout(hideTimeoutProgress);
 		hideTimeoutProgress = setTimeout(function () {
@@ -3618,7 +3632,7 @@
 	 */
 	/** Displays the script progress panel and optionally attaches a click handler. */
 	function setProgress(text, hide, onclick) {
-		const { ScriptMenu } = HWHClasses;
+		const { ScriptMenu } = HWclasses;
 		const scriptMenu = ScriptMenu.getInst();
 		clearTimeout(hideTimeoutProgress);
 		scriptMenu.setStatus(text, onclick);
@@ -3636,7 +3650,7 @@
 	 *
 	 */
 	function addProgress(text) {
-		const { ScriptMenu } = HWHClasses;
+		const { ScriptMenu } = HWclasses;
 		const scriptMenu = ScriptMenu.getInst();
 		scriptMenu.addStatus(text);
 	}
@@ -3662,7 +3676,7 @@
 	}
 
 	function startSlave() {
-		const { slaveFixBattle } = HWHClasses;
+		const { slaveFixBattle } = HWclasses;
 		const sFix = new slaveFixBattle();
 		sFix.wsStart();
 	}
@@ -3675,7 +3689,7 @@
 		startSlave,
 	};
 
-	this.HWHFuncs = {
+	this.HWfuncs = {
 		send,
 		I18N,
 		isChecked,
@@ -3693,7 +3707,7 @@
 		random,
 	};
 
-	this.HWHClasses = {
+	this.HWclasses = {
 		checkChangeSend,
 		checkChangeResponse,
 	};
@@ -3831,7 +3845,7 @@
 		const result = storage.get(saveName, def);
 		return result;
 	}
-	this.HWHFuncs.getSaveVal = getSaveVal;
+	this.HWfuncs.getSaveVal = getSaveVal;
 
 	/**
 	 * Stores value
@@ -3840,7 +3854,7 @@
 	function setSaveVal(saveName, value) {
 		storage.set(saveName, value);
 	}
-	this.HWHFuncs.setSaveVal = setSaveVal;
+	this.HWfuncs.setSaveVal = setSaveVal;
 
 	/**
 	 * Database initialization
@@ -3935,10 +3949,7 @@
 		await db.set(userId, storage.values);
 	}
 
-	/**
-	 * @param {Class} BaseClass
-	 * @returns {Class}
-	 */
+	//#region Events processing: Events
 	const EventEmitterMixin = (BaseClass = Object) =>
 		class EventEmitter extends BaseClass {
 			constructor(...args) {
@@ -3946,11 +3957,6 @@
 				this._events = new Map();
 			}
 
-			/**
-			 * @param {string} event
-			 * @param {function} listener
-			 * @returns {this}
-			 */
 			on(event, listener) {
 				if (typeof listener !== 'function') {
 					throw new TypeError('Listener must be a function');
@@ -3963,11 +3969,6 @@
 				return this;
 			}
 
-			/**
-			 * @param {string} event
-			 * @param {function} listener
-			 * @returns {this}
-			 */
 			off(event, listener) {
 				if (this._events.has(event)) {
 					const listeners = this._events.get(event);
@@ -3979,11 +3980,6 @@
 				return this;
 			}
 
-			/**
-			 * @param {string} event
-			 * @param {...any} args
-			 * @returns {boolean}
-			 */
 			emit(event, ...args) {
 				if (!this._events.has(event)) return false;
 				const listeners = new Set(this._events.get(event));
@@ -3998,11 +3994,6 @@
 				return true;
 			}
 
-			/**
-			 * @param {string} event
-			 * @param {function} listener
-			 * @returns {this}
-			 */
 			once(event, listener) {
 				const onceWrapper = (...args) => {
 					this.off(event, onceWrapper);
@@ -4011,10 +4002,6 @@
 				return this.on(event, onceWrapper);
 			}
 
-			/**
-			 * @param {string} [event]
-			 * @returns {this}
-			 */
 			removeAllListeners(event) {
 				if (event) {
 					this._events.delete(event);
@@ -4024,22 +4011,19 @@
 				return this;
 			}
 
-			/**
-			 * @param {string} event
-			 * @returns {number}
-			 */
 			listenerCount(event) {
 				return this._events.has(event) ? this._events.get(event).size : 0;
 			}
 		};
 
-	this.HWHFuncs.EventEmitterMixin = EventEmitterMixin;
-
+	this.HWfuncs.EventEmitterMixin = EventEmitterMixin;
 	class GlobalEventHub extends EventEmitterMixin() { }
 	const Events = new GlobalEventHub();
-	this.HWHFuncs.Events = Events;
+	this.HWfuncs.Events = Events;
+	//#endregion
 
-	/** Queues script tasks and executes them sequentially with error handling. */
+	//#region TaskManager
+	// Queues script tasks and executes them sequentially with error handling.
 	class TaskManager {
 		isConsoleLog = false;
 		functionRegistry = {};
@@ -4127,11 +4111,11 @@
 				URL.createObjectURL(
 					new Blob([
 						`self.onmessage = function(e) {
-								const timeout = e.data;
-								setTimeout(() => {
-									self.postMessage(1);
-								}, timeout);
-							};`,
+									const timeout = e.data;
+									setTimeout(() => {
+										self.postMessage(1);
+									}, timeout);
+								};`,
 					])
 				)
 			);
@@ -4160,8 +4144,8 @@
 		}
 	}
 
-	this.HWHClasses.TaskManager = TaskManager;
-
+	this.HWclasses.TaskManager = TaskManager;
+	//#endregion
 
 	/**
 	 * Calculates HASH MD5 from string
@@ -4539,7 +4523,7 @@
 						oldSkipMisson.call(this, a, b, c);
 					}
 				};
-	
+
 				Game.PlayerTowerData.prototype.P$h = function (a) {
 					const GM_2 = getFnP(Game.GameModel, 'get_instance');
 					const GM_P2 = getProtoFn(Game.GameModel, 2);
@@ -5724,7 +5708,7 @@
 	 *
 	 */
 	async function mailGetAll() {
-		const { Letters } = HWHClasses;
+		const { Letters } = HWclasses;
 		const mailGetAll = await Caller.send('mailGetAll');
 		const letterIds = Letters.filter(mailGetAll.letters);
 		if (!letterIds.length) {
@@ -5752,7 +5736,7 @@
 		 * @returns {Array} -
 		 */
 		static filter(letters) {
-			const { Letters } = HWHClasses;
+			const { Letters } = HWclasses;
 			const lettersIds = [];
 
 			for (let l in letters) {
@@ -5806,7 +5790,7 @@
 		}
 	}
 
-	this.HWHClasses.Letters = Letters;
+	this.HWclasses.Letters = Letters;
 
 	function setPortals(value = 0, isChange = false) {
 		const { buttons } = HWHData;
@@ -6467,7 +6451,7 @@
 			}
 
 			if (isFarmMail) {
-				const { Letters } = HWHClasses;
+				const { Letters } = HWclasses;
 				const letterIds = Letters.filter(mailFarm);
 				if (letterIds.length) {
 					farmCaller.add({
@@ -6592,7 +6576,7 @@
 		});
 	}
 
-	this.HWHFuncs.countdownTimer = countdownTimer;
+	this.HWfuncs.countdownTimer = countdownTimer;
 
 	async function bossRatingEventSouls() {
 		const [heroGetAll, offerGetAll, pet_getAll] = await Caller.send(['heroGetAll', 'offerGetAll', 'pet_getAll']);
@@ -7181,7 +7165,7 @@
 		await new Caller('inventoryGet').execute();
 		let result = await new Caller().add('inventoryGet').execute();
 		console.log('Inventory Get Result:', result);
-	
+
 		let caller = new Caller();
 		await caller
 			.add([
@@ -7197,7 +7181,7 @@
 			.send();
 		console.log('Inventory Get Result:', caller.result('inventoryGet'));
 		console.log('Hero Get All Result:', caller.result('heroGetAll'));
-	
+
 		caller.clear();
 	})();
 	*/
@@ -7532,7 +7516,7 @@
 		};
 	});
 
-	this.HWHFuncs.popup = popup;
+	this.HWfuncs.popup = popup;
 
 	/**
 	 * Script control panel
@@ -7609,7 +7593,7 @@
 			main.appendChild(mainMenu);
 
 			this.mainMenu = document.createElement('div');
-			this.mainMenu.classList.add('scriptMenu_conteiner');
+			this.mainMenu.classList.add('scriptMenu_container');
 			mainMenu.appendChild(this.mainMenu);
 
 			const closeButton = document.createElement('label');
@@ -7773,17 +7757,17 @@
 			/*
 			const miniSocket = document.createElement('div');
 			miniSocket.classList.add('scriptMenu_miniSocket');
-	
+
 			const miniGap = document.createElement('div');
 			miniGap.classList.add('scriptMenu_miniGap');
 			miniSocket.appendChild(miniGap);
-	
+
 			const indicator = document.createElement('div');
 			indicator.classList.add('scriptMenu_indicator', 'scriptMenu_dot');
 			indicator.title = title;
 			indicator.innerHTML = '22';
 			miniGap.appendChild(indicator);
-	
+
 			btnSocket.appendChild(miniSocket);
 			*/
 		}
@@ -7891,7 +7875,7 @@
 		}
 	}
 
-	this.HWHClasses.ScriptMenu = ScriptMenu;
+	this.HWclasses.ScriptMenu = ScriptMenu;
 
 	//const scriptMenu = ScriptMenu.getInst();
 
@@ -7931,7 +7915,7 @@
 	 *
 	 */
 	function checkExpedition() {
-		const { Expedition } = HWHClasses;
+		const { Expedition } = HWclasses;
 		return new Promise((resolve, reject) => {
 			const expedition = new Expedition(resolve, reject);
 			expedition.start();
@@ -8065,14 +8049,14 @@
 		}
 	}
 
-	this.HWHClasses.Expedition = Expedition;
+	this.HWclasses.Expedition = Expedition;
 
 	/**
 	 * Walkthrough of the dungeon
 	 *
 	 */
 	function testDungeon() {
-		const { executeDungeon } = HWHClasses;
+		const { executeDungeon } = HWclasses;
 		return new Promise((resolve, reject) => {
 			const dung = new executeDungeon(resolve, reject);
 			const titanit = getInput('countTitanit');
@@ -8490,14 +8474,14 @@
 		}
 	}
 
-	this.HWHClasses.executeDungeon = executeDungeon;
+	this.HWclasses.executeDungeon = executeDungeon;
 
 	/**
 	 * Passing the tower
 	 *
 	 */
 	function testTower() {
-		const { executeTower } = HWHClasses;
+		const { executeTower } = HWclasses;
 		return new Promise((resolve, reject) => {
 			tower = new executeTower(resolve, reject);
 			tower.start();
@@ -8966,14 +8950,14 @@
 		}
 	}
 
-	this.HWHClasses.executeTower = executeTower;
+	this.HWclasses.executeTower = executeTower;
 
 	/**
 	 * Passage of the arena of the titans
 	 *
 	 */
 	function testTitanArena() {
-		const { executeTitanArena } = HWHClasses;
+		const { executeTitanArena } = HWclasses;
 		return new Promise((resolve, reject) => {
 			titAren = new executeTitanArena(resolve, reject);
 			titAren.start();
@@ -9396,14 +9380,14 @@
 		}
 	}
 
-	this.HWHClasses.executeTitanArena = executeTitanArena;
+	this.HWclasses.executeTitanArena = executeTitanArena;
 
 	/**
 	 * Attack of the minions of Asgard
 	 *
 	 */
 	function testRaidNodes() {
-		const { executeRaidNodes } = HWHClasses;
+		const { executeRaidNodes } = HWclasses;
 		return new Promise((resolve, reject) => {
 			const tower = new executeRaidNodes(resolve, reject);
 			tower.start();
@@ -9658,14 +9642,14 @@
 		}
 	}
 
-	this.HWHClasses.executeRaidNodes = executeRaidNodes;
+	this.HWclasses.executeRaidNodes = executeRaidNodes;
 
 	/**
 	 * Asgard Boss Attack Replay
 	 *
 	 */
 	function testBossBattle() {
-		const { executeBossBattle } = HWHClasses;
+		const { executeBossBattle } = HWclasses;
 		return new Promise((resolve, reject) => {
 			const bossBattle = new executeBossBattle(resolve, reject);
 			bossBattle.start(lastBossBattle);
@@ -9741,7 +9725,7 @@
 		}
 	}
 
-	this.HWHClasses.executeBossBattle = executeBossBattle;
+	this.HWclasses.executeBossBattle = executeBossBattle;
 
 	/** Replays battles with adjusted timings to search for a desired outcome. */
 	class FixBattle {
@@ -9806,11 +9790,11 @@
 				URL.createObjectURL(
 					new Blob([
 						`self.onmessage = function(e) {
-							const timeout = e.data;
-							setTimeout(() => {
-								self.postMessage(1);
-							}, timeout);
-						};`,
+								const timeout = e.data;
+								setTimeout(() => {
+									self.postMessage(1);
+								}, timeout);
+							};`,
 					])
 				)
 			);
@@ -9897,7 +9881,7 @@
 		}
 	}
 
-	this.HWHClasses.FixBattle = FixBattle;
+	this.HWclasses.FixBattle = FixBattle;
 
 	/** Battle fixer variant that stops after finding a winning result. */
 	class WinFixBattle extends FixBattle {
@@ -9949,7 +9933,7 @@
 		}
 	}
 
-	this.HWHClasses.WinFixBattle = WinFixBattle;
+	this.HWclasses.WinFixBattle = WinFixBattle;
 
 	class BestOrWinFixBattle extends WinFixBattle {
 		isNoMakeWin = false;
@@ -10004,7 +9988,7 @@
 		}
 	}
 
-	this.HWHClasses.BestOrWinFixBattle = BestOrWinFixBattle;
+	this.HWclasses.BestOrWinFixBattle = BestOrWinFixBattle;
 
 	/** Battle fixer specialized for boss encounters. */
 	class BossFixBattle extends FixBattle {
@@ -10020,7 +10004,7 @@
 		}
 	}
 
-	this.HWHClasses.BossFixBattle = BossFixBattle;
+	this.HWclasses.BossFixBattle = BossFixBattle;
 
 	/** Battle fixer specialized for dungeon encounters. */
 	class DungeonFixBattle extends FixBattle {
@@ -10099,7 +10083,7 @@
 		}
 	}
 
-	this.HWHClasses.DungeonFixBattle = DungeonFixBattle;
+	this.HWclasses.DungeonFixBattle = DungeonFixBattle;
 
 	const masterWsMixin = {
 		wsStart() {
@@ -10201,7 +10185,7 @@
 
 	Object.assign(masterFixBattle.prototype, masterWsMixin);
 
-	this.HWHClasses.masterFixBattle = masterFixBattle;
+	this.HWclasses.masterFixBattle = masterFixBattle;
 
 	class masterWinFixBattle extends WinFixBattle {
 		constructor(battle, url = 'wss://localho.st:3000') {
@@ -10237,7 +10221,7 @@
 
 	Object.assign(masterWinFixBattle.prototype, masterWsMixin);
 
-	this.HWHClasses.masterWinFixBattle = masterWinFixBattle;
+	this.HWclasses.masterWinFixBattle = masterWinFixBattle;
 
 	const slaveWsMixin = {
 		wsStop() {
@@ -10295,7 +10279,7 @@
 
 	Object.assign(slaveFixBattle.prototype, slaveWsMixin);
 
-	this.HWHClasses.slaveFixBattle = slaveFixBattle;
+	this.HWclasses.slaveFixBattle = slaveFixBattle;
 
 	class slaveWinFixBattle extends WinFixBattle {
 		constructor(url = 'wss://localho.st:3000') {
@@ -10307,13 +10291,13 @@
 
 	Object.assign(slaveWinFixBattle.prototype, slaveWsMixin);
 
-	this.HWHClasses.slaveWinFixBattle = slaveWinFixBattle;
+	this.HWclasses.slaveWinFixBattle = slaveWinFixBattle;
 	/**
 	 * Auto-repeat attack
 	 *
 	 */
 	function testAutoBattle() {
-		const { executeAutoBattle } = HWHClasses;
+		const { executeAutoBattle } = HWclasses;
 		return new Promise((resolve, reject) => {
 			const bossBattle = new executeAutoBattle(resolve, reject);
 			bossBattle.start(lastBattleArg, lastBattleInfo);
@@ -10547,7 +10531,7 @@
 				endBattle(e, false);
 				return;
 			} else if (isChecked('tryFixIt_v2')) {
-				const { WinFixBattle } = HWHClasses;
+				const { WinFixBattle } = HWclasses;
 				const cloneBattle = structuredClone(e.battleData);
 				const bFix = new WinFixBattle(cloneBattle);
 				let attempts = Infinity;
@@ -10643,18 +10627,18 @@
 				},
 				ident: "body"
 			}];
-	
+
 			if (nameFuncStartBattle == 'invasion_bossStart') {
 				calls[0].args.id = lastBattleArg.id;
 			}
-	
+
 			send({calls}, async e => {
 				console.log(e);
 				if (isCancal) {
 					startBattle();
 					return;
 				}
-	
+
 				setProgress(`${I18N('SUCCESS')}!`, 5000)
 				if (nameFuncStartBattle == 'invasion_bossStart' ||
 					nameFuncStartBattle == 'bossAttack') {
@@ -10701,7 +10685,7 @@
 							location.reload();
 						}
 					}
-	
+
 				}
 				endAutoBattle(`${I18N('SUCCESS')}!`)
 			});
@@ -10717,10 +10701,10 @@
 		}
 	}
 
-	this.HWHClasses.executeAutoBattle = executeAutoBattle;
+	this.HWclasses.executeAutoBattle = executeAutoBattle;
 
 	function testDailyQuests() {
-		const { dailyQuests } = HWHClasses;
+		const { dailyQuests } = HWclasses;
 		return new Promise((resolve, reject) => {
 			const quests = new dailyQuests(resolve, reject);
 			quests.init(questsInfo);
@@ -11511,10 +11495,10 @@
 	}
 
 	this.questRun = dailyQuests;
-	this.HWHClasses.dailyQuests = dailyQuests;
+	this.HWclasses.dailyQuests = dailyQuests;
 
 	function testDoYourBest() {
-		const { doYourBest } = HWHClasses;
+		const { doYourBest } = HWclasses;
 		return new Promise((resolve, reject) => {
 			const doIt = new doYourBest(resolve, reject);
 			doIt.start();
@@ -11603,7 +11587,7 @@
 
 		functions = {
 			tidyInventory: async () => {
-				const { InventoryTidier } = HWHClasses;
+				const { InventoryTidier } = HWclasses;
 				const tidyInv = new InventoryTidier();
 				await tidyInv.runSilent();
 			},
@@ -11723,14 +11707,14 @@
 		}
 	}
 
-	this.HWHClasses.doYourBest = doYourBest;
+	this.HWclasses.doYourBest = doYourBest;
 
 	/**
 	 * Passing the adventure along the specified route
 	 *
 	 */
 	function testAdventure(type) {
-		const { executeAdventure } = HWHClasses;
+		const { executeAdventure } = HWclasses;
 		return new Promise((resolve, reject) => {
 			const bossBattle = new executeAdventure(resolve, reject);
 			bossBattle.start(type);
@@ -12168,14 +12152,14 @@
 		}
 	}
 
-	this.HWHClasses.executeAdventure = executeAdventure;
+	this.HWclasses.executeAdventure = executeAdventure;
 
 	/**
 	 * Passage of brawls
 	 *
 	 */
 	function testBrawls(isAuto) {
-		const { executeBrawls } = HWHClasses;
+		const { executeBrawls } = HWclasses;
 		return new Promise((resolve, reject) => {
 			const brawls = new executeBrawls(resolve, reject);
 			brawls.start(brawlsPack, isAuto);
@@ -12247,7 +12231,7 @@
 		}
 
 		async start(args, isAuto) {
-			const { executeBrawls } = HWHClasses;
+			const { executeBrawls } = HWclasses;
 			this.isAuto = isAuto;
 			this.args = args;
 			setIsCancalBattle(false);
@@ -13098,7 +13082,7 @@
 		}
 
 		end(endReason) {
-			const { executeBrawls } = HWHClasses;
+			const { executeBrawls } = HWclasses;
 			setIsCancalBattle(true);
 			executeBrawls.isBrawlsAutoStart = false;
 			setProgress(endReason, true);
@@ -13107,7 +13091,7 @@
 		}
 	}
 
-	this.HWHClasses.executeBrawls = executeBrawls;
+	this.HWclasses.executeBrawls = executeBrawls;
 
 	/**
 	 * Runs missions from the company on a specified list
@@ -13116,7 +13100,7 @@
 	 * @returns
 	 */
 	function testCompany(missions, isRaids = false, getMissionLabel = null, onProgressClick = null, shouldStop = null) {
-		const { ExecuteCompany } = HWHClasses;
+		const { ExecuteCompany } = HWclasses;
 		return new Promise((resolve, reject) => {
 			const tower = new ExecuteCompany(resolve, reject);
 			tower.start(missions, isRaids, getMissionLabel, onProgressClick, shouldStop);
@@ -13259,7 +13243,7 @@
 		}
 	}
 
-	this.HWHClasses.ExecuteCompany = ExecuteCompany;
+	this.HWclasses.ExecuteCompany = ExecuteCompany;
 
 	/** Plans raids for the missing gear of one hero without spending premium currency. */
 	class GearFarmer {
@@ -14117,7 +14101,7 @@
 		}
 	}
 
-	this.HWHClasses.GearFarmer = GearFarmer;
+	this.HWclasses.GearFarmer = GearFarmer;
 	class InventoryTidier {
 		inventory = {};
 
@@ -14252,7 +14236,7 @@
 		}
 	}
 
-	this.HWHClasses.InventoryTidier = InventoryTidier;
+	this.HWclasses.InventoryTidier = InventoryTidier;
 
 
 	class epicBrawl {
@@ -14260,10 +14244,10 @@
 		time = null;
 
 		constructor() {
-			if (HWHClasses.epicBrawl.inst) {
-				return HWHClasses.epicBrawl.inst;
+			if (HWclasses.epicBrawl.inst) {
+				return HWclasses.epicBrawl.inst;
 			}
-			HWHClasses.epicBrawl.inst = this;
+			HWclasses.epicBrawl.inst = this;
 			return this;
 		}
 
@@ -14272,17 +14256,17 @@
 				URL.createObjectURL(
 					new Blob([
 						`
-				self.onmessage = function(e) {
-					const timeDiff = e.data;
+					self.onmessage = function(e) {
+						const timeDiff = e.data;
 
-					if (timeDiff > 0) {
-						setTimeout(() => {
-							self.postMessage(1);
-							self.close();
-						}, timeDiff);
-					}
-				};
-			`,
+						if (timeDiff > 0) {
+							setTimeout(() => {
+								self.postMessage(1);
+								self.close();
+							}, timeDiff);
+						}
+					};
+				`,
 					]),
 				),
 			);
@@ -14418,8 +14402,9 @@
 		}
 	}
 
-	this.HWHClasses.epicBrawl = epicBrawl;
+	this.HWclasses.epicBrawl = epicBrawl;
 
+	//#region SeerGame
 	class SeerGame {
 		constructor() {
 			this.roundResumePrice = Object.values(lib.data.eventPicker.roundResumePrice);
@@ -14555,7 +14540,7 @@
 		}
 	}
 
-	this.HWHClasses.SeerGame = SeerGame;
+	this.HWclasses.SeerGame = SeerGame;
 	class ZingerYWebsiteAPI {
 		/**
 		 * Class for interaction with the API of the zingery.ru website
@@ -14617,14 +14602,6 @@
 				throw Error('Access denied');
 			}
 		}
-		/**
-		 * https://greasyfork.org/ru/scripts/450693-herowarshelper
-		 * Copyright ZingerY
-		 */
 	}
-
+	//#endregion
 })();
-
-/**
- * TODO:
- */

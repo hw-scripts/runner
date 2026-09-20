@@ -1,0 +1,86 @@
+<!-- Static reference template. It is not loaded by the extension yet. -->
+<html>
+<!-- <template id="scriptMenuTemplate"> -->
+
+<head>
+  <!-- <link media="all" href="https://heroesweb-a.akamaihd.net/i/hw-web/v2/2037169//css/game-adaptive.css" rel="stylesheet"> -->
+  <link media="all" href="file:///D:\Google Drive\Runner\styles\default.css" rel="stylesheet">
+  <script src="file:///D:\Google Drive\Runner\scripts\scriptMenu.js"></script>
+</head>
+
+<body>
+  <panel id="runner_panel" class="runner_panel hidden"></panel>
+
+  <section>
+    <input id="runner_showMenu" class="runner_showMenu" type="checkbox" unchecked />
+    <label class="runner_menuLabel" for="runner_showMenu">
+      <div class="runner_arrowLabel"></div>
+    </label>
+
+    <menu class="runner_menuContainer">
+      <label class="runner_menuClose" for="runner_showMenu">
+        <div class="runner_crossClose"></div>
+      </label>
+
+      <div class="runner_header">{{scriptTitle}}</div>
+
+      <div class="runner_selectors">
+        <select id="runner_Language">
+          <!-- Language options are added from scriptLanguages. -->
+        </select>
+        <select id="runner_Skin">
+          <!-- Skin options are added from availableSkins. -->
+        </select>
+      </div>
+
+      <submenu>
+        <span id="SETTINGS">{{SETTINGS_BEHAVIOR}}</span>
+        <buttons>
+          <button class="runner_buttonRow"> {{}} </button>
+          <div class="scriptMenu_btnRow">
+            <div class="scriptMenu_btnGap brown">
+              <div class="scriptMenu_btnPlate brown" name="SETTINGS_BATTLES">{{SETTINGS_BATTLES}}</div>
+            </div>
+          </div>
+          <div class="scriptMenu_btnRow">
+            <div class="scriptMenu_btnGap brown">
+              <div class="scriptMenu_btnPlate brown" name="SETTINGS_ADDITIONAL">{{SETTINGS_ADDITIONAL}}</div>
+            </div>
+          </div>
+        </buttons>
+      </submenu>
+
+      <div class="scriptMenu_btnSocket">
+        <div class="scriptMenu_btnRow">
+          <div class="scriptMenu_btnGap brown autopilot">
+            <div class="scriptMenu_btnPlate brown">
+              <span class="scriptMenu_settingsIcon">&#9211;</span><span name="STARTUP">{{STARTUP}}</span>
+            </div>
+          </div>
+        </div>
+        <div class="scriptMenu_btnRow">
+          <div class="scriptMenu_btnGap brown autopilot">
+            <div class="scriptMenu_btnPlate brown">
+              <span class="scriptMenu_settingsIcon">&gt;&gt;</span><span name="SEQUENCE">{{SEQUENCE}}</span>
+            </div>
+          </div>
+        </div>
+        <div class="scriptMenu_btnRow">
+          <div class="scriptMenu_btnGap brown autopilot">
+            <div class="scriptMenu_btnPlate brown">
+              <span class="scriptMenu_settingsIcon">&#9881;</span><span name="AUTOPILOT">{{AUTOPILOT}}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <details class="scriptMenu_Details">
+        <summary class="scriptMenu_Summary" name="VALUES">{{VALUES}}</summary>
+        <!-- Inputs are added from HWHData.inputs. -->
+      </details>
+    </menu>
+  </section>
+</body>
+<!-- </template> -->
+
+</html>

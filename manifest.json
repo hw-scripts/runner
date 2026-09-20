@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "HWrunner",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Hero Wars autorunner",
   "author": "Miish",
   "homepage_url": "https://github.com/hw-scripts/runner",
@@ -15,7 +15,9 @@
         "https://www.hero-wars.cn/*",
         "https://apps-1701433570146040.apps.fbsbx.com/*"
       ],
-      "js": ["bridge.js"],
+      "js": [
+        "bridge.js"
+      ],
       "run_at": "document_start",
       "all_frames": true,
       "world": "ISOLATED"
@@ -26,7 +28,9 @@
         "https://www.hero-wars.cn/*",
         "https://apps-1701433570146040.apps.fbsbx.com/*"
       ],
-      "js": ["HWrunner.js"],
+      "js": [
+        "HWrunner.js"
+      ],
       "run_at": "document_start",
       "all_frames": true,
       "world": "MAIN"

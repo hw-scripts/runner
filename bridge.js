@@ -1,10 +1,4 @@
 const manifest = chrome.runtime.getManifest();
-const runnerInfo = {
-	name: manifest.name,
-	version: manifest.version,
-	author: manifest.author,
-	homepage: manifest.homepage_url,
-};
 
 window.addEventListener('HWrunner:extension-info-request', (event) => {
 	const { id } = event.detail || {};
@@ -12,9 +6,7 @@ window.addEventListener('HWrunner:extension-info-request', (event) => {
 		return;
 	}
 
-	window.dispatchEvent(new CustomEvent('HWrunner:extension-info-response', {
-		detail: { id, runnerInfo },
-	}));
+	window.dispatchEvent(new CustomEvent('HWrunner:extension-info-response', { detail: { id, manifest } }));
 });
 
 window.addEventListener('HWrunner:extension-request', (event) => {
