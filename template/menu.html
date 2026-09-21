@@ -1,52 +1,50 @@
-<!doctype html>
-<html>
-<head>
-    <meta charset=utf-8>
-</head>
-<body>
-    <article id="article">
-        <h2>Article</h2>
-        <p>
-          Nullam dui arcu, malesuada et sodales eu, efficitur vitae dolor. Sed ultricies dolor non
-          ante vulputate hendrerit. Vivamus sit amet suscipit sapien. Nulla iaculis eros a elit
-          pharetra egestas. Nunc placerat facilisis cursus. Sed vestibulum metus eget dolor pharetra
-          rutrum.
-        </p>
-        <footer>
-          <small>Duis nec elit placerat, suscipit nibh quis, finibus neque.</small>
-        </footer>
-      </article>
-    <link rel="stylesheet" href="file:///D:/Google%20Drive/Runner/styles/default.css">
+<link rel="stylesheet" href="file:///D:/Google%20Drive/Runner/styles/default.css">
 
-    <input type="checkbox" id="drawer-toggle">
-    <label for="drawer-toggle" class="drawer-toggle-btn" aria-label="Open">
-        <span>→</span>
-    </label>
+<input type="checkbox" id="drawer-toggle">
+<label for="drawer-toggle" class="drawer-toggle-btn" aria-label="Open">
+    <span>⋮</span>
+</label>
 
-    <div class="drawer-overlay">
-        <div class="drawer-panel">
-            <label for="drawer-toggle" class="drawer-close-btn" aria-label="Close">
-                <span>✕</span>
-            </label>
+<div class="drawer-overlay">
+    <div class="drawer-panel">
+        <label for="drawer-toggle" class="drawer-close-btn" aria-label="Close">
+            <span>✕</span>
+        </label>
 
-            <div class="drawer-content">
-                <h3 style="margin-bottom: 1.5rem;">Налаштування</h3>
-
-                <label for="text-field">Ваше ім'я:</label>
-                <input type="text" id="text-field" placeholder="Введіть текст...">
-
-                <fieldset>
-                    <label>
-                        <input type="checkbox" role="switch" checked>
-                        Темна тема
-                    </label>
-                </fieldset>
-
-                <button class="secondary" style="width: 100%;">Застосувати</button>
-            </div>
-
+        <div class="drawer-content">
+            <h2>{{myvar}}</h2>
+            <section id="selectors">
+                <select id="runner_Language" value="{{selectedLanguage}}">
+                    <!-- Language options are added from scriptLanguages. -->
+                    <options for="item of scriptLanguages" value="{{item.value}}">{{item.label}}</options>
+                </select>
+                <select id="runner_Skin" value="{{selectedSkin}}">
+                    <!-- Language options are added from scriptLanguages. -->
+                    <options for="item of scriptSkins" value="{{item.value}}">{{item.label}}</options>
+                </select>
+            </section>
+            <section id="actions">
+                <details name="show_one">
+                    <summary>Accordion 1</summary>
+                    <p>
+                        Lorem ipsum dolor sit amet, consectetur adipiscing elit. Pellentesque urna diam,
+                        tincidunt nec porta sed, auctor id velit. Etiam venenatis nisl ut orci consequat, vitae
+                        tempus quam commodo. Nulla non mauris ipsum. Aliquam eu posuere orci. Nulla convallis
+                        lectus rutrum quam hendrerit, in facilisis elit sollicitudin. Mauris pulvinar pulvinar
+                        mi, dictum tristique elit auctor quis. Maecenas ac ipsum ultrices, porta turpis sit
+                        amet, congue turpis.
+                    </p>
+                </details>
+                <details name="show_one">
+                    <summary>Accordion 2</summary>
+                    <ul>
+                        <li>Vestibulum id elit quis massa interdum sodales.</li>
+                        <li>Nunc quis eros vel odio pretium tincidunt nec quis neque.</li>
+                        <li>Quisque sed eros non eros ornare elementum.</li>
+                        <li>Cras sed libero aliquet, porta dolor quis, dapibus ipsum.</li>
+                    </ul>
+                </details>
+            </section>
         </div>
     </div>
-</body>
-
-</html>
+</div>

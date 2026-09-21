@@ -51,9 +51,10 @@
 	}
 	//#endregion
 
+	//#region Overriding the methods for sending requests to the server and receiving responses
 	// Original methods for working with AJAX
 	const original =
-	//#region Overriding the methods for sending requests to the server and receiving responses
+	//
 	{
 		open: XMLHttpRequest.prototype.open,
 		send: XMLHttpRequest.prototype.send,
@@ -130,7 +131,7 @@
 			this.isSetOnMessage = true;
 		}
 		original.SendWebSocket.call(this, data);
-	}
+	};
 
 	/**
 	 * Overriding/Proxying the Ajax Request Creation Method
@@ -248,7 +249,7 @@
 				}
 
 				Events.emit('startGame', this);
-			}
+			};
 
 			/**
 			 * Outgoing request data processing
@@ -294,7 +295,7 @@
 
 				}
 			}
-		}
+		};
 
 		if (this.errorRequest) {
 			const oldReady = this.onreadystatechange;
@@ -328,6 +329,8 @@
 
 		}
 	};
+
+
 	//#endregion
 
 	// Main function for running the script
@@ -337,24 +340,24 @@
 	 * Start script
 	 *
 	 */
-	console.log('%cStart ' + runnerManifest.name + ', v' + runnerManifest.version + ' by ' + runnerManifest.author, 'color: red');
+	console.log('%cStart ' + runnerManifest.name + ' ' + runnerManifest.version, 'color: red');
 	/**
 	 * Script info
 	 *
 	 */
-	this.scriptInfo = (({ name, version, author, homepage_url, lastModified }, updateUrl) =>
-		({ name, version, author, homepage_url, lastModified, updateUrl }))
-		(runnerManifest, runnerManifest.updateUrl);
-	// The quiz checks window.GM_info for the original HeroWarsHelper identity.
-	this.GM_info = Object.freeze({
-		script: Object.freeze({
-			name: 'HeroWarsHelper',
-			version: '2.458',
-			author: 'ZingerY',
-			homepage: 'https://zingery.ru/scripts/HeroWarsHelper.user.js',
-		}),
-		scriptUpdateURL: 'https://update.greasyfork.org/scripts/450693/HeroWarsHelper.meta.js',
-	});
+	// this.scriptInfo = (({ name, version, author, homepage_url, lastModified }, updateUrl) =>
+	// 	({ name, version, author, homepage_url, lastModified, updateUrl }))
+	// 	(runnerManifest, runnerManifest.updateUrl);
+	// // The quiz checks window.GM_info for the original HeroWarsHelper identity.
+	// this.GM_info = Object.freeze({
+	// 	script: Object.freeze({
+	// 		name: 'HeroWarsHelper',
+	// 		version: '2.458',
+	// 		author: 'ZingerY',
+	// 		homepage: 'https://zingery.ru/scripts/HeroWarsHelper.user.js',
+	// 	}),
+	// 	scriptUpdateURL: 'https://update.greasyfork.org/scripts/450693/HeroWarsHelper.meta.js',
+	// });
 
 	/**
 	 * Information for completing daily quests
@@ -371,7 +374,6 @@
 	 *
 	 */
 	let lastHeaders = {};
-	let oasloHeaders = {};
 	/**
 	 * Information about sent gifts
 	 *
@@ -383,11 +385,16 @@
 	 * missionTimer
 	 */
 	let missionBattle = null;
+
 	/**
 	 * User data
 	 *
 	 */
 	let userInfo;
+	function getUserInfo() {
+		return userInfo;
+	}
+
 	this.isTimeBetweenNewDays = function () {
 		if (userInfo.timeZone <= 3) {
 			return false;
@@ -404,10 +411,8 @@
 		return false;
 	};
 
-	function getUserInfo() {
-		return userInfo;
-	}
-
+	//#region oaslo
+	let oasloHeaders = {};
 	/** Collects the game headers and player data required by the Oaslo integration. */
 	async function getOasloGameData() {
 		const entries = Object.entries(oasloHeaders).filter(([headerName, value]) => headerName.startsWith('x-') && value);
@@ -519,6 +524,7 @@
 			});
 		});
 	}
+	//#endregion 
 
 	/**
 	 * Decoder for converting byte data to JSON string
@@ -14604,4 +14610,141 @@
 		}
 	}
 	//#endregion
+
+	//#region Template
+	class TemplateRenderer {
+		constructor(template, evaluate) {
+			this.template = template;
+			this.evaluate = evaluate;
+		}
+
+		render() {
+			const template = document.createElement('template');
+			template.innerHTML = this.template;
+
+			const fragment = template.content;
+			this.renderOverrides(fragment);
+			this.renderExpressions(fragment, this.evaluate);
+			this.renderFinalisations(fragment);
+
+			return fragment;
+		}
+
+		renderOverrides(root) {
+			this.renderTagMethods(root, 'Override');
+		}
+
+		renderFinalisations(root) {
+			this.renderTagMethods(root, 'Finalisation');
+		}
+
+		renderTagMethods(root, suffix) {
+			const processed = new WeakSet();
+
+			while (true) {
+				let element = null;
+				for (const candidate of root.querySelectorAll('*')) {
+					if (!processed.has(candidate)) {
+						element = candidate;
+						break;
+					}
+				}
+
+				if (!element)
+					break;
+
+				processed.add(element);
+
+				const method =
+					this[element.tagName.toLowerCase() + suffix];
+
+				if (typeof method === 'function')
+					method.call(this, element);
+			}
+		}
+
+		optionsOverride(options) {
+			const forExpr = options.getAttribute('for');
+
+			if (!forExpr)
+				return;
+
+			const attributes = [...options.attributes]
+				.filter(attribute => attribute.name !== 'for');
+
+			const content = options.innerHTML;
+
+			this.evaluate(`
+			for (const ${forExpr}) {
+				callback(code => eval(code));
+			}
+		`, localEvaluate => {
+				const option = document.createElement('option');
+
+				for (const attribute of attributes)
+					option.setAttribute(
+						attribute.name,
+						attribute.value
+					);
+
+				option.innerHTML = content;
+
+				this.renderAttributes(option, localEvaluate);
+				this.renderExpressions(option, localEvaluate);
+
+				options.before(option);
+			});
+
+			options.remove();
+		}
+
+		selectFinalisation(select) {
+			if (select.hasAttribute('value'))
+				select.value = select.getAttribute('value');
+		}
+
+		renderExpressions(root, evaluate) {
+			const walker = document.createTreeWalker(
+				root,
+				NodeFilter.SHOW_ELEMENT |
+				NodeFilter.SHOW_TEXT
+			);
+
+			let node;
+
+			while ((node = walker.nextNode())) {
+				if (node.nodeType === Node.TEXT_NODE)
+					node.nodeValue =
+						this.renderExpression(node.nodeValue, evaluate);
+
+				else
+					this.renderAttributes(node, evaluate);
+			}
+		}
+
+		renderAttributes(element, evaluate) {
+			for (const attribute of element.attributes)
+				attribute.value =
+					this.renderExpression(attribute.value, evaluate);
+		}
+
+		renderExpression(text, evaluate) {
+			return text.replace(
+				/\{\{(.*?)\}\}/gs,
+				(match, expression) =>
+					evaluate(expression.trim())
+			);
+		}
+	}
+
+
+	Element.prototype.appendTemplate = function (template, evaluate) {
+		const renderer = new TemplateRenderer(template, evaluate);
+		this.append(renderer.render());
+	};
+
+
+	//#endregion
+
+
 })();
