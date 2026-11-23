@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HWrunner
 // @namespace    https://github.com/hw-scripts/runner
-// @version      1.1.12
+// @version      1.1.21
 // @description  Hero Wars autorunner
 // @description:en Hero Wars autorunner
 // @description:uk Автоматичний працівник для Hero Wars
@@ -336,6 +336,7 @@
 	const scriptLanguages = ['en', 'uk', 'ru'];
 	const scriptLanguageStorageKey = GM_info.script.name + ':language';
 	const i18nLangData = {};
+	const languageLoads = new Map();
 	const runnerRepositoryUrl = 'https://raw.githubusercontent.com/hw-scripts/runner/master';
 	const i18nRepositoryUrl = `${runnerRepositoryUrl}/i18n`;
 	const stylesRepositoryUrl = `${runnerRepositoryUrl}/styles`;
@@ -367,38 +368,47 @@
 		});
 	}
 
-	async function loadLanguageData(language) {
-		if (i18nLangData[language]) {
-			return i18nLangData[language];
-		}
-
+	function loadLanguageData(language) {
+		if (languageLoads.has(language)) return languageLoads.get(language);
 		const cacheKey = i18nCacheKeyPrefix + language;
-		try {
-			const dictionary = await requestLanguageDictionary(language);
-			if (!dictionary || Array.isArray(dictionary)) {
-				throw new Error(`Invalid ${language} dictionary`);
-			}
-			i18nLangData[language] = dictionary;
-			localStorage.setItem(cacheKey, JSON.stringify(dictionary));
-			return dictionary;
-		} catch (error) {
+		const load = (async () => {
 			try {
-				const cachedDictionary = JSON.parse(localStorage.getItem(cacheKey));
-				if (cachedDictionary && !Array.isArray(cachedDictionary)) {
-					i18nLangData[language] = cachedDictionary;
-					return cachedDictionary;
+				const dictionary = await requestLanguageDictionary(language);
+				if (!dictionary || typeof dictionary !== 'object' || Array.isArray(dictionary) || !Object.keys(dictionary).length) {
+					throw new Error(`Invalid ${language} dictionary`);
 				}
-			} catch (cacheError) {
-				console.warn(`Unable to read cached ${language} dictionary`, cacheError);
+				i18nLangData[language] = dictionary;
+				try { localStorage.setItem(cacheKey, JSON.stringify(dictionary)); } catch (error) {
+					console.warn(`Unable to cache ${language} dictionary`, error);
+				}
+				return dictionary;
+			} catch (error) {
+				try {
+					const cached = JSON.parse(localStorage.getItem(cacheKey));
+					if (cached && typeof cached === 'object' && !Array.isArray(cached) && Object.keys(cached).length) {
+						i18nLangData[language] = cached;
+						console.warn(`Using cached ${language} dictionary`, error);
+						return cached;
+					}
+				} catch (cacheError) {
+					console.warn(`Unable to read cached ${language} dictionary`, cacheError);
+				}
+				throw error;
 			}
-			throw error;
-		}
+		})();
+		languageLoads.set(language, load);
+		load.catch(() => languageLoads.delete(language));
+		return load;
 	}
 
 	async function loadI18n(language = getLang()) {
-		await loadLanguageData(language);
-		if (language !== 'en') {
-			await loadLanguageData('en');
+		const languages = language === 'en' ? ['en'] : [language, 'en'];
+		const results = await Promise.allSettled(languages.map(loadLanguageData));
+		if (results.every(result => result.status === 'rejected')) {
+			throw results[0].reason;
+		}
+		for (let i = 0; i < results.length; i++) {
+			if (results[i].status === 'rejected') console.warn(`Unable to load ${languages[i]} dictionary`, results[i].reason);
 		}
 	}
 
@@ -1658,7 +1668,7 @@
 					lib.setData(await cheats.LibLoad());
 				}
 				try {
-					await loadI18n();
+					await i18nReady;
 				} catch (error) {
 					console.error('Unable to load interface dictionary', error);
 				}
@@ -1715,7 +1725,8 @@
 					// Exhausted keys are an ordinary stop for free chest opening, not a reload error.
 					try {
 						const request = JSON.parse(requestHistory[this.uniqid].request);
-						const normalized = ignoreExhaustedArtifactKeys(isTextResponse ? JSON.parse(response) : response, request);
+						const parsed = isTextResponse ? JSON.parse(response) : response;
+						const normalized = ignoreExhaustedArtifactKeys(parsed, request) || ignoreUnavailablePrestigeReward(parsed, request);
 						if (normalized) {
 							response = isTextResponse ? JSON.stringify(normalized) : normalized;
 							Object.defineProperty(this, 'response', { configurable: true, writable: true, value: response });
@@ -3723,6 +3734,10 @@
 		extintionsList: extentionsList,
 		extentionsList,
 	};
+
+	// Start fetching external dictionaries before the first game request.
+	const i18nReady = loadI18n();
+	i18nReady.catch(error => console.error('Unable to preload interface dictionary', error));
 
 	/**
 	 * Game Library
@@ -6006,90 +6021,157 @@
 		setProgress(I18N('BOXES_OVER'), true);
 	}
 
-	async function fillActive() {
-		const [quests, inv, clanInfo] = await Caller.send(['questGetAll', 'inventoryGet', 'clanGetInfo']);
+	function exchangeColorGroup(item, colorDefinitions) {
+		const tier = [item?.color, item?.tier, item?.heroColor]
+			.map(Number).find(value => Number.isInteger(value) && value > 0);
+		if (!tier || !colorDefinitions?.[tier]) return null;
+		const ident = String(colorDefinitions[tier].ident ?? '').toLowerCase();
+		const names = ['white', 'green', 'blue', 'violet', 'orange', 'red', 'brown'];
+		const index = names.findIndex(name => ident.includes(name) || (name === 'white' && /gray|grey/.test(ident)) || (name === 'violet' && ident.includes('purple')));
+		return index < 0 ? null : index;
+	}
 
-		const stat = clanInfo.stat;
-		const maxActive = 2000 - stat.todayItemsActivity;
-		if (maxActive <= 0) {
+	function calculateHeroEquipmentProtection(heroes, heroLibrary, items, inventory) {
+		if (!heroes || typeof heroes !== 'object' || !heroLibrary || !items) throw new Error('Missing hero or equipment data');
+		const demand = new Map();
+		const ownedHeroes = Object.values(heroes).filter(hero => hero && Number(hero.id) > 0 && Number(hero.id) < 6000);
+		if (!ownedHeroes.length) throw new Error('No owned heroes available for equipment calculation');
+		if (ownedHeroes.some(hero => hero.power == null || !Number.isFinite(Number(hero.power)))) {
+			throw new Error('Missing hero power for equipment calculation');
+		}
+		ownedHeroes.sort((a, b) => Number(b.power) - Number(a.power) || Number(a.id) - Number(b.id));
+		for (const hero of ownedHeroes.slice(0, 15)) {
+			const current = Number(hero.color);
+			const tiers = heroLibrary[hero.id]?.color;
+			if (!Number.isInteger(current) || !tiers || !tiers[current]) throw new Error(`Missing equipment tiers for hero ${hero.id}`);
+			for (const [tierId, tier] of Object.entries(tiers)) {
+				const level = Number(tierId);
+				if (!Number.isInteger(level) || level < current) continue;
+				if (!tier?.items || typeof tier.items !== 'object') throw new Error(`Missing equipment slots for hero ${hero.id}, tier ${tierId}`);
+				for (const [slotId, itemId] of Object.entries(tier.items)) {
+					if (level === current && Object.prototype.hasOwnProperty.call(hero.slots ?? {}, slotId)) continue;
+					if (!(Number(itemId) > 0)) continue;
+					const key = `gear:${itemId}`;
+					demand.set(key, (demand.get(key) || 0) + 1);
+				}
+			}
+		}
+		const protectedItems = {};
+		function reserve(type, id, amount, parents = new Set()) {
+			const key = `${type}:${id}`;
+			if (parents.has(key)) throw new Error(`Circular equipment recipe: ${key}`);
+			if (!Number.isSafeInteger(amount) || amount <= 0) throw new Error(`Invalid equipment demand: ${key}`);
+			const available = Math.max(0, (Number(inventory[type]?.[id]) || 0) - (protectedItems[type]?.[id] || 0));
+			const used = Math.min(available, amount);
+			if (used) {
+				protectedItems[type] ??= {};
+				protectedItems[type][id] = (protectedItems[type][id] || 0) + used;
+			}
+			const missing = amount - used;
+			if (!missing || type === 'fragmentGear' || type === 'fragmentScroll') return;
+			if (type !== 'gear' && type !== 'scroll') throw new Error(`Unknown equipment component: ${key}`);
+			const item = items[type]?.[id];
+			if (!item) throw new Error(`Missing equipment definition: ${key}`);
+			const next = new Set(parents).add(key);
+			const recipe = item.craftRecipe;
+			const components = Object.entries(recipe ?? {}).filter(([componentType]) => componentType !== 'gold');
+			if (components.length) {
+				for (const [componentType, entries] of components) {
+					if (!entries || typeof entries !== 'object') throw new Error(`Invalid equipment recipe: ${key}`);
+					for (const [componentId, quantity] of Object.entries(entries)) reserve(componentType, componentId, missing * Number(quantity), next);
+				}
+			} else if (item.fragmentMergeCost?.fragmentCount != null) {
+				const fragments = Number(item.fragmentMergeCost.fragmentCount);
+				if (!Number.isSafeInteger(fragments) || fragments <= 0) throw new Error(`Invalid fragment recipe: ${key}`);
+				reserve(type === 'gear' ? 'fragmentGear' : 'fragmentScroll', id, missing * fragments, next);
+			}
+		}
+		for (const [key, count] of demand) reserve('gear', key.slice(5), count);
+		return protectedItems;
+	}
+
+	function planActivityExchange(inventory, items, colors, reserves, target, maxActivity, protectedItems = {}) {
+		const candidates = [];
+		for (const type of ['gear', 'scroll']) {
+			for (const [inventoryType, valueKey] of [[type, 'enchantValue'], [type === 'gear' ? 'fragmentGear' : 'fragmentScroll', 'fragmentEnchantValue']]) {
+				for (const [id, count] of Object.entries(inventory[inventoryType] ?? {})) {
+					const item = items[type]?.[id];
+					const group = exchangeColorGroup(item, colors);
+					const value = Number(item?.[valueKey]);
+					const available = Math.max(0, Math.floor(Number(count)) - (protectedItems[inventoryType]?.[id] || 0) - (reserves[group] ?? Infinity));
+					if (group === null || !Number.isFinite(value) || value <= 0 || !Number.isSafeInteger(available) || !available) continue;
+					candidates.push({ id, type: inventoryType, group, value, available });
+				}
+			}
+		}
+		candidates.sort((a, b) => a.group - b.group || b.available - a.available || a.type.localeCompare(b.type) || Number(a.id) - Number(b.id));
+		const selected = {};
+		let activity = 0;
+		for (const item of candidates) {
+			if (activity >= target) break;
+			const desired = Math.ceil((target - activity) / item.value);
+			const allowed = Math.floor((maxActivity - activity) / item.value);
+			const amount = Math.min(item.available, desired, allowed);
+			if (amount <= 0) continue;
+			(selected[item.type] ??= {})[item.id] = amount;
+			activity += amount * item.value;
+		}
+		return { items: selected, activity };
+	}
+
+	async function fillActive() {
+		const [quests, inv, clanInfo, heroes] = await Caller.send(['questGetAll', 'inventoryGet', 'clanGetInfo', 'heroGetAll']);
+		const maxActive = Math.max(0, 2000 - Number(clanInfo.stat.todayItemsActivity));
+		if (!maxActive) {
 			setProgress(I18N('NO_MORE_ACTIVITY'), true);
 			return;
 		}
-
-		let countGetActive = 0;
-		const quest = quests.find((e) => e.id > 10046 && e.id < 10051);
-		if (quest) {
-			countGetActive = 1750 - quest.progress;
-		}
-
-		if (countGetActive <= 0) {
-			countGetActive = maxActive;
-		}
-		console.log(countGetActive);
-
-		countGetActive = +(await popup.confirm(I18N('EXCHANGE_ITEMS', { maxActive }), [
+		const previous = getSaveVal('itemExchangeReserves', '200/200/200/200/200/200/200');
+		const reserveInput = await popup.confirm(I18N('EXCHANGE_RESERVES_PROMPT'), [
 			{ result: false, isClose: true },
-			{ msg: I18N('GET_ACTIVITY'), isInput: true, default: countGetActive.toString(), color: 'green' },
-		]));
-
-		if (!countGetActive) {
+			{ msg: I18N('BTN_SAVE'), isInput: true, default: previous, color: 'green' },
+		]);
+		if (reserveInput === false || reserveInput == null) return;
+		const text = String(reserveInput).trim();
+		if (!/^\d+(?:\D+\d+){6}$/.test(text)) {
+			setProgress(I18N('EXCHANGE_RESERVES_INVALID'), true);
 			return;
 		}
-
-		if (countGetActive > maxActive) {
-			countGetActive = maxActive;
+		const reserves = text.split(/\D+/).map(Number);
+		if (!reserves.every(Number.isSafeInteger)) {
+			setProgress(I18N('EXCHANGE_RESERVES_INVALID'), true);
+			return;
 		}
-
-		const items = lib.getData('inventoryItem');
-
-		let itemsInfo = [];
-		for (let type of ['gear', 'scroll']) {
-			for (let i in inv[type]) {
-				const v = items[type][i]?.enchantValue || 0;
-				itemsInfo.push({
-					id: i,
-					count: inv[type][i],
-					v,
-					type,
-				});
-			}
-			const invType = 'fragment' + type.toLowerCase().charAt(0).toUpperCase() + type.slice(1);
-			for (let i in inv[invType]) {
-				const v = items[type][i]?.fragmentEnchantValue || 0;
-				itemsInfo.push({
-					id: i,
-					count: inv[invType][i],
-					v,
-					type: invType,
-				});
-			}
+		setSaveVal('itemExchangeReserves', reserves.join('/'));
+		const quest = quests.find(e => e.id > 10046 && e.id < 10051);
+		const suggested = Math.min(maxActive, Math.max(0, 1750 - Number(quest?.progress ?? 1750)) || maxActive);
+		const answer = await popup.confirm(I18N('EXCHANGE_ITEMS', { maxActive }), [
+			{ result: false, isClose: true },
+			{ msg: I18N('GET_ACTIVITY'), isInput: true, default: String(suggested), color: 'green' },
+		]);
+		const requested = Number(answer);
+		if (!Number.isSafeInteger(requested) || requested <= 0) return;
+		const target = Math.min(requested, maxActive);
+		const itemLibrary = lib.getData('inventoryItem');
+		let protectedItems;
+		try {
+			protectedItems = calculateHeroEquipmentProtection(heroes, lib.data?.hero, itemLibrary, inv);
+		} catch (error) {
+			console.error('Unable to calculate hero equipment reserves', error);
+			setProgress(`${I18N('ITEM_EXCHANGE')}: ${error.message}`, true);
+			return;
 		}
-		itemsInfo = itemsInfo.filter((e) => e.v < 4 && e.count > 200);
-		itemsInfo = itemsInfo.sort((a, b) => b.count - a.count);
-		console.log(itemsInfo);
-		const activeItem = itemsInfo.shift();
-		console.log(activeItem);
-		const countItem = Math.ceil(countGetActive / activeItem.v);
-		if (countItem > activeItem.count) {
+		const plan = planActivityExchange(inv, itemLibrary, lib.data?.enum?.heroColor, reserves, target, maxActive, protectedItems);
+		if (plan.activity <= 0) {
+			console.warn('Not enough eligible items for activity exchange', { target, available: plan.activity });
 			setProgress(I18N('NOT_ENOUGH_ITEMS'), true);
-			console.log(activeItem);
 			return;
 		}
-
-		const response = await Caller.send({
-			name: 'clanItemsForActivity',
-			args: {
-				items: {
-					[activeItem.type]: {
-						[activeItem.id]: countItem,
-					},
-				},
-			},
-		});
-
-		/** TODO: */
-		console.log(response);
-		setProgress(`${I18N('ACTIVITY_RECEIVED')}: ` + response, true);
+		const response = await Caller.send({ name: 'clanItemsForActivity', args: { items: plan.items } });
+		console.log('Activity exchange', { plan, response });
+		try { await cheats.refreshInventory(); } catch (error) { console.warn('Unable to refresh inventory after exchange', error); }
+		const receivedActivity = Number(response);
+		setProgress(`${I18N('ACTIVITY_RECEIVED')}: ${Number.isFinite(receivedActivity) ? receivedActivity : plan.activity}`, true);
 	}
 
 	async function buyHeroFragments() {
@@ -6395,6 +6477,19 @@
 			result: { response: { artifactKeysUnavailable: true } } }] };
 	}
 
+	function ignoreUnavailablePrestigeReward(response, request) {
+		const calls = request?.calls;
+		if (!Array.isArray(calls) || calls.length !== 1 || calls[0].name !== 'clan_prestigeFarmAllRewards') return null;
+		const call = calls[0];
+		const entry = response?.results?.find(item => item.ident === call.ident);
+		const error = response?.error || entry?.error || entry?.result?.error;
+		if (error?.name !== 'NotAvailable' || error.description !== 'Level reward not available' ||
+			(error.call?.name && error.call.name !== call.name)) return null;
+		return { ...response, error: undefined, results: [{ ident: call.ident, result: { response: {
+			farmedPrestigeLevels: [], farmedPrestigeLevelsPaid: [],
+		} } }] };
+	}
+
 	async function openArtifactChestsWithKeys() {
 		const inventory = await Caller.send('inventoryGet');
 		const keys = Number(inventory?.consumable?.[45]);
@@ -6423,6 +6518,10 @@
 		}
 	}
 
+	function rewardQuestClaimKey(quest) {
+		return `${quest.id}:${quest.createTime ?? ''}:${quest.farmCount ?? 0}`;
+	}
+
 	async function rewardsAndMailFarmPass(isFarmMail, collected) {
 			let prestigeCollected = false;
 			try {
@@ -6447,7 +6546,7 @@
 				'battlePass_getInfo',
 				'battlePass_getSpecial',
 			]);
-			const questsFarm = questGetAll.filter((e) => e.state == 2 && !collected.quests.has(+e.id));
+			const questsFarm = questGetAll.filter((e) => e.state == 2 && !collected.quests.has(rewardQuestClaimKey(e)));
 			const mailFarm = mailGetAll?.letters || [];
 			const stagesOffers = specialOffer.filter(e => e.offerType === "stagesOffer" && e.farmedStage == -1 && !collected.offers.has(e.id));
 
@@ -6484,7 +6583,7 @@
 				}
 			}
 
-			const farmQuestIds = [];
+			const farmQuestKeys = [];
 			const questIds = [];
 			for (let quest of questsFarm) {
 				const questId = +quest.id;
@@ -6519,7 +6618,7 @@
 
 				if (questId >= 2e7 && questId < 14e8) {
 					questIds.push(questId);
-					farmQuestIds.push(questId);
+					farmQuestKeys.push(rewardQuestClaimKey(quest));
 					continue;
 				}
 
@@ -6527,7 +6626,7 @@
 					name: 'questFarm',
 					args: { questId },
 				});
-				farmQuestIds.push(questId);
+				farmQuestKeys.push(rewardQuestClaimKey(quest));
 			}
 
 			if (questIds.length) {
@@ -6554,81 +6653,17 @@
 			}
 
 			const farmResults = await farmCaller.sendSequential();
-			farmQuestIds.forEach(id => collected.quests.add(id));
+			farmQuestKeys.forEach(key => collected.quests.add(key));
 
 			let countQuests = 0;
 			let countMail = 0;
-			let questsIds = [];
 
 			const questFarm = farmResults.result('questFarm', true);
-			countQuests += questFarm.length;
-			countQuests += questIds.length;
+			countQuests += questFarm.length + questIds.length;
 			countMail += Object.keys(farmResults.result('mailFarm')).length;
 
-			const sideResult = farmResults.sideResult('questFarm', true);
-			sideResult.push(...farmResults.sideResult('quest_questsFarm', true));
-
-			for (let side of sideResult) {
-				const quests = [...(side.newQuests ?? []), ...(side.quests ?? [])];
-				for (let quest of quests) {
-					if ((quest.id < 1e6 || (quest.id >= 2e7 && quest.id < 20010100)) && quest.state == 2) {
-						questsIds.push(quest.id);
-					}
-				}
-			}
-			questsIds = [...new Set(questsIds)];
-
-			while (questsIds.length) {
-				const recursiveCaller = new Caller();
-				const newQuestIds = [];
-
-				for (let questId of questsIds) {
-					if (farmQuestIds.includes(questId)) {
-						continue;
-					}
-					if (questId < 1e6) {
-						recursiveCaller.add({
-							name: 'questFarm',
-							args: { questId },
-						});
-						farmQuestIds.push(questId);
-						collected.quests.add(+questId);
-						countQuests++;
-					} else if (questId >= 2e7 && questId < 20010100) {
-						farmQuestIds.push(questId);
-						collected.quests.add(+questId);
-						newQuestIds.push(questId);
-						countQuests++;
-					}
-				}
-
-				if (newQuestIds.length) {
-					recursiveCaller.add({
-						name: 'quest_questsFarm',
-						args: { questIds: newQuestIds },
-					});
-				}
-
-				questsIds = [];
-				if (recursiveCaller.isEmpty()) {
-					break;
-				}
-
-				await recursiveCaller.sendSequential();
-				const sideResult = recursiveCaller.sideResult('questFarm', true);
-				sideResult.push(...recursiveCaller.sideResult('quest_questsFarm', true));
-
-				for (let side of sideResult) {
-					const quests = [...(side.newQuests ?? []), ...(side.quests ?? [])];
-					for (let quest of quests) {
-						if ((quest.id < 1e6 || (quest.id >= 2e7 && quest.id < 20010100)) && quest.state == 2) {
-							questsIds.push(quest.id);
-						}
-					}
-				}
-				questsIds = [...new Set(questsIds)];
-			}
-
+			// The next pass reads fresh quest state, including repeatable quests whose
+			// farmCount changed and quests unlocked by any collected reward.
 			collected.countQuests += countQuests;
 			collected.countMail += countMail;
 			return true;
