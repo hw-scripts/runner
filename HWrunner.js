@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HWrunner
 // @namespace    https://github.com/hw-scripts/runner
-// @version      1.1.21
+// @version      1.1.22
 // @description  Hero Wars autorunner
 // @description:en Hero Wars autorunner
 // @description:uk Автоматичний працівник для Hero Wars
@@ -368,15 +368,27 @@
 		});
 	}
 
+	function cleanLanguageDictionary(dictionary, language) {
+		const cleaned = { ...dictionary };
+		for (const key of ['EXCHANGE_RESERVES_PROMPT', 'EXCHANGE_RESERVES_INVALID']) {
+			if (typeof cleaned[key] === 'string' && /\?{3}/.test(cleaned[key])) {
+				delete cleaned[key];
+				console.warn(`Ignoring corrupted ${language} translation: ${key}`);
+			}
+		}
+		return cleaned;
+	}
+
 	function loadLanguageData(language) {
 		if (languageLoads.has(language)) return languageLoads.get(language);
 		const cacheKey = i18nCacheKeyPrefix + language;
 		const load = (async () => {
 			try {
-				const dictionary = await requestLanguageDictionary(language);
+				let dictionary = await requestLanguageDictionary(language);
 				if (!dictionary || typeof dictionary !== 'object' || Array.isArray(dictionary) || !Object.keys(dictionary).length) {
 					throw new Error(`Invalid ${language} dictionary`);
 				}
+				dictionary = cleanLanguageDictionary(dictionary, language);
 				i18nLangData[language] = dictionary;
 				try { localStorage.setItem(cacheKey, JSON.stringify(dictionary)); } catch (error) {
 					console.warn(`Unable to cache ${language} dictionary`, error);
@@ -386,9 +398,9 @@
 				try {
 					const cached = JSON.parse(localStorage.getItem(cacheKey));
 					if (cached && typeof cached === 'object' && !Array.isArray(cached) && Object.keys(cached).length) {
-						i18nLangData[language] = cached;
+						i18nLangData[language] = cleanLanguageDictionary(cached, language);
 						console.warn(`Using cached ${language} dictionary`, error);
-						return cached;
+						return i18nLangData[language];
 					}
 				} catch (cacheError) {
 					console.warn(`Unable to read cached ${language} dictionary`, cacheError);
