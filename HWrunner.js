@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HWrunner
 // @namespace    https://github.com/hw-scripts/runner
-// @version      1.0.47
+// @version      1.1.12
 // @description  Hero Wars autorunner
 // @description:en Hero Wars autorunner
 // @description:uk Автоматичний працівник для Hero Wars
@@ -111,8 +111,8 @@
 			uuid: findHeader('uuid'),
 			unique: findHeader('unique'),
 			progress:
-				findHeader('progress', (value) => value.length > 80) ||
-				findUnidentifiedHeader((value) => value.length > 80),
+				findHeader('progress', (value) => value.length > 80 && value.startsWith('ps')) ||
+				findUnidentifiedHeader((value) => value.length > 80 && value.startsWith('ps')),
 			sync:
 				findHeader('sync', (value) => /^[a-zA-Z0-9]+$/.test(value)) ||
 				entries.find(
@@ -317,7 +317,15 @@
 	this.Send = function (json, pr) {
 		return new Promise((resolve, reject) => {
 			try {
-				send(json, resolve, pr);
+				send(json, (response, context, xhr) => {
+					if (response == null) {
+						const request = typeof json === 'string' ? JSON.parse(json) : json;
+						const names = request.calls.map(call => call.name).join(', ');
+						reject(new Error(`Empty or invalid JSON response for ${names} (HTTP ${xhr?.status ?? 0})`));
+						return;
+					}
+					resolve(response);
+				}, pr);
 			} catch (e) {
 				reject(e);
 			}
@@ -491,6 +499,12 @@
 			cbox: null,
 			get title() { return I18N('BATTLE_RECALCULATION_TITLE'); },
 			default: false,
+		},
+		dungeonStopOnDeath: {
+			get label() { return { uk: 'Зупиняти підземелля при загибелі', en: 'Stop dungeon on death', ru: 'Останавливать подземелье при гибели' }[getLang()]; },
+			cbox: null,
+			get title() { return { uk: 'Не фіксувати бій, якщо загине герой або титан', en: 'Do not commit a battle if a hero or titan dies', ru: 'Не фиксировать бой, если погибнет герой или титан' }[getLang()]; },
+			default: true,
 		},
 		countControl: {
 			get label() { return I18N('QUANTITY_CONTROL'); },
@@ -1578,8 +1592,6 @@
 		if (method == 'POST' && urls.some((domain) => url.includes(domain)) && /[rpc|api]\/$/.test(url)) {
 			if (!apiUrl) {
 				apiUrl = url;
-				const socialInfo = /heroes-(.+?)\./.exec(apiUrl);
-				console.log(socialInfo);
 			}
 			requestHistory[this.uniqid] = {
 				method,
@@ -1601,7 +1613,9 @@
 	 *
 	 */
 	XMLHttpRequest.prototype.setRequestHeader = function (name, value, check) {
-		if (typeof value === 'string') {
+		name = String(name);
+		value = String(value);
+		if (this.uniqid in requestHistory && typeof value === 'string') {
 			oasloHeaders[name.toLowerCase()] = value.trim();
 		}
 		if (this.uniqid in requestHistory) {
@@ -1698,6 +1712,18 @@
 				if (this.readyState == 4 && this.status == 200) {
 					isTextResponse = this.responseType === "text" || this.responseType === "";
 					let response = isTextResponse ? this.responseText : this.response;
+					// Exhausted keys are an ordinary stop for free chest opening, not a reload error.
+					try {
+						const request = JSON.parse(requestHistory[this.uniqid].request);
+						const normalized = ignoreExhaustedArtifactKeys(isTextResponse ? JSON.parse(response) : response, request);
+						if (normalized) {
+							response = isTextResponse ? JSON.stringify(normalized) : normalized;
+							Object.defineProperty(this, 'response', { configurable: true, writable: true, value: response });
+							if (isTextResponse) Object.defineProperty(this, 'responseText', { configurable: true, writable: true, value: response });
+						}
+					} catch (error) {
+						console.error('Unable to inspect free artifact chest response', error);
+					}
 					requestHistory[this.uniqid].response = response;
 					/**
 					 * Replacing incoming request data
@@ -1705,6 +1731,13 @@
 					 */
 					if (isTextResponse) {
 						await checkChangeResponse.call(this, response);
+					} else {
+						// JSON responses bypass checkChangeResponse, but the mission timer still needs the battle.
+						const missionIdent = requestHistory[this.uniqid].calls.missionStart;
+						if (missionIdent != null && Array.isArray(response?.results)) {
+							const mission = response.results.find((call) => call.ident === missionIdent);
+							missionBattle = mission?.result?.response || null;
+						}
 					}
 					/**
 					 * A function to run after the request is executed
@@ -1719,7 +1752,6 @@
 					try {
 						return oldReady.apply(this, arguments);
 					} catch (e) {
-						console.log(oldReady);
 						console.error('Error in oldReady:', e);
 					}
 
@@ -2130,7 +2162,6 @@
 							HWHData.countPredictionCard--;
 						}
 					}
-					console.log(`Cards: ${HWHData.countPredictionCard}`);
 					/**
 					 * Fix endless cards
 					 */
@@ -2231,6 +2262,7 @@
 				 * missionTimer
 				 */
 				if (call.name == 'missionStart') {
+					missionBattle = null;
 					lastMissionStart = call.args;
 					lastMissionBattleStart = Date.now();
 				}
@@ -2365,7 +2397,7 @@
 
 			let signature = headers['X-Auth-Signature'];
 			if (signature) {
-				original.setRequestHeader.call(this, 'X-Auth-Signature', signature);
+				original.setRequestHeader.call(this, 'X-Auth-Signature', String(signature));
 			}
 		} catch (err) {
 			console.log("Request(send, " + this.uniqid + "):\n", sourceData, "Error:\n", err);
@@ -2742,7 +2774,6 @@
 					const consumable = call.result.response?.consumable;
 					if (consumable && consumable[81]) {
 						HWHData.countPredictionCard += consumable[81];
-						console.log(`Cards: ${HWHData.countPredictionCard}`);
 					}
 				}
 				/**
@@ -2813,7 +2844,7 @@
 								coin19 = 0,
 								gold = 0,
 								starmoney = 0;
-							for (const r of results) {
+							for (const r of (Array.isArray(results) ? results : [results])) {
 								coin18 += r?.coin ? +r.coin[18] : 0;
 								coin19 += r?.coin ? +r.coin[19] : 0;
 								gold += r?.gold ? +r.gold : 0;
@@ -3420,6 +3451,7 @@
 			'passBattle',
 			'cancelBattle',
 			'preCalcBattle',
+			'dungeonStopOnDeath',
 			'repeatMission',
 		]);
 	}
@@ -3555,7 +3587,7 @@
 			 * If the result of the request is obtained, we call the flask function
 			 */
 			if (xhr.readyState == 4) {
-				callback(xhr.response, pr);
+				callback(xhr.response, pr, xhr);
 			}
 		};
 		/**
@@ -3567,7 +3599,7 @@
 		 */
 		for (let nameHeader in headers) {
 			let head = headers[nameHeader];
-			xhr.setRequestHeader(nameHeader, head);
+			xhr.setRequestHeader(nameHeader, String(head));
 		}
 		/**
 		 * Sending a request
@@ -4360,7 +4392,7 @@
 			} else {
 				battleInstantPlay = new Game.BattleInstantPlay(battleData, battlePresets);
 			}
-			battleInstantPlay[getProtoFn(Game.BattleInstantPlay, 9)].add((battleInstant) => {
+			getBattleCompletionSignal(battleInstantPlay).add((battleInstant) => {
 				const MBR_2 = getProtoFn(Game.MultiBattleResult, 2);
 				const battleResults = battleInstant[getF(Game.BattleInstantPlay, 'get_result')]();
 				const battleData = battleInstant[getF(Game.BattleInstantPlay, 'get_rawBattleInfo')]();
@@ -4436,6 +4468,24 @@
 		 * @param {Number} nF Order number of function //
 		 * @returns
 		 */
+		// Discover the signal on the actual instance rather than relying on prototype order.
+		function getBattleCompletionSignal(player) {
+			const signals = new Set();
+			for (let prototype = player; prototype && prototype !== Object.prototype; prototype = Object.getPrototypeOf(prototype)) {
+				for (const [name, descriptor] of Object.entries(Object.getOwnPropertyDescriptors(prototype))) {
+					if (!('value' in descriptor) && !descriptor.get) continue;
+					const value = 'value' in descriptor ? descriptor.value : player[name];
+					if (value && typeof value === 'object' && typeof value.add === 'function') {
+						signals.add(value);
+					}
+				}
+			}
+			if (signals.size !== 1) {
+				throw new Error(`Battle completion signal: expected one signal, found ${signals.size}`);
+			}
+			return signals.values().next().value;
+		}
+
 		function getProtoFn(classF, nF) {
 			let prop = Object.keys(classF.prototype);
 			return prop[nF];
@@ -4471,7 +4521,7 @@
 							!1,
 						);
 						a = new Game.BattleInstantPlay(c, a);
-						a[getProtoFn(Game.BattleInstantPlay, 9)].add(Game.bindFunc(this, this.P$h));
+						getBattleCompletionSignal(a).add(Game.bindFunc(this, this.P$h));
 						a.start();
 					} catch (error) {
 						console.error('company', error);
@@ -4508,7 +4558,7 @@
 							!1
 						);
 						a = new Game.BattleInstantPlay(a, p);
-						a[getProtoFn(Game.BattleInstantPlay, 9)].add(Game.bindFunc(this, this.P$h));
+						getBattleCompletionSignal(a).add(Game.bindFunc(this, this.P$h));
 						a.start();
 					} catch (error) {
 						console.error('tower', error);
@@ -5031,7 +5081,6 @@
 		 *
 		 */
 		function changeLib() {
-			console.log('lib connect');
 			const originalStartFunc = Game.GameModel.prototype.start;
 			Game.GameModel.prototype.start = function (a, b, c) {
 				self.libGame = b.raw;
@@ -6334,8 +6383,63 @@
 		setProgress(I18N('LOTS_BOUGHT', { countBuy }), true);
 	}
 
+	function ignoreExhaustedArtifactKeys(response, request) {
+		const calls = request?.calls;
+		if (!Array.isArray(calls) || calls.length !== 1) return null;
+		const call = calls[0];
+		if (call.name !== 'artifactChestOpen' || call.args?.free !== true) return null;
+		const entry = response?.results?.find((entry) => entry.ident === call.ident);
+		const error = response?.error || entry?.error || entry?.result?.error;
+		if (!error || !/(^|[:\\])NotEnough$/.test(error.name || '')) return null;
+		return { ...response, error: undefined, results: [{ ident: call.ident,
+			result: { response: { artifactKeysUnavailable: true } } }] };
+	}
+
+	async function openArtifactChestsWithKeys() {
+		const inventory = await Caller.send('inventoryGet');
+		const keys = Number(inventory?.consumable?.[45]);
+		if (!Number.isSafeInteger(keys) || keys <= 0) return;
+		let remaining = keys;
+		while (remaining > 0) {
+			const amount = remaining >= 100 ? 100 : remaining > 10 ? 10 : 1;
+			const result = await Caller.send({ name: 'artifactChestOpen', args: { amount, free: true } });
+			if (result?.artifactKeysUnavailable) return;
+			remaining -= amount;
+		}
+	}
+
 	async function rewardsAndMailFarm(isFarmMail = true) {
+		const collected = { quests: new Set(), offers: new Set(), letters: new Set(), prestige: new Set(), countQuests: 0, countMail: 0 };
 		try {
+			// Open before reading quests so newly completed chest quests are collected too.
+			await openArtifactChestsWithKeys();
+			while (await rewardsAndMailFarmPass(isFarmMail, collected)) {
+				await openArtifactChestsWithKeys();
+			}
+			setProgress(I18N('COLLECT_REWARDS_AND_MAIL', { countQuests: collected.countQuests, countMail: collected.countMail }), true);
+		} catch (error) {
+			console.error('Error in rewardsAndMailFarm:', error);
+			setProgress(`${I18N('REWARDS_AND_MAIL')}: ${error.message}`, true);
+		}
+	}
+
+	async function rewardsAndMailFarmPass(isFarmMail, collected) {
+			let prestigeCollected = false;
+			try {
+				const prestige = await Caller.send('clan_prestigeFarmAllRewards');
+				if (!prestige || !Array.isArray(prestige.farmedPrestigeLevels) || !Array.isArray(prestige.farmedPrestigeLevelsPaid)) {
+					throw new Error('Invalid clan prestige rewards response');
+				}
+				for (const [type, levels] of [['free', prestige.farmedPrestigeLevels], ['paid', prestige.farmedPrestigeLevelsPaid]]) {
+					for (const level of levels) {
+						const key = `${type}:${level}`;
+						if (!collected.prestige.has(key)) prestigeCollected = true;
+						collected.prestige.add(key);
+					}
+				}
+			} catch (error) {
+				throw new Error(`clan_prestigeFarmAllRewards: ${error.message}`);
+			}
 			const [questGetAll, mailGetAll, specialOffer, battlePassInfo, battlePassSpecial] = await Caller.send([
 				'questGetAll',
 				'mailGetAll',
@@ -6343,9 +6447,9 @@
 				'battlePass_getInfo',
 				'battlePass_getSpecial',
 			]);
-			const questsFarm = questGetAll.filter((e) => e.state == 2);
+			const questsFarm = questGetAll.filter((e) => e.state == 2 && !collected.quests.has(+e.id));
 			const mailFarm = mailGetAll?.letters || [];
-			const stagesOffers = specialOffer.filter(e => e.offerType === "stagesOffer" && e.farmedStage == -1);
+			const stagesOffers = specialOffer.filter(e => e.offerType === "stagesOffer" && e.farmedStage == -1 && !collected.offers.has(e.id));
 
 			const listBattlePass = {
 				[battlePassInfo.id]: battlePassInfo.battlePass,
@@ -6367,6 +6471,7 @@
 
 			for (const offer of stagesOffers) {
 				const offerId = offer.id;
+				collected.offers.add(offerId);
 				//const stage = 0 - offer.farmedStage;
 				for (const stage of offer.offerData.stages) {
 					if (stage.billingId) {
@@ -6384,18 +6489,8 @@
 			for (let quest of questsFarm) {
 				const questId = +quest.id;
 
-				/*
-				if ([20010001, 20010002, 20010004].includes(questId)) {
-					farmCaller.add({
-						name: 'questFarm',
-						args: { questId },
-					});
-					farmQuestIds.push(questId);
-					continue;
-				}
-				*/
-
-				if (questId >= 2001e4 && questId < 14e8) {
+				// Guild quests use quest_questsFarm too (confirmed by the native reward request).
+				if (questId >= 20010100 && questId < 14e8) {
 					continue;
 				}
 
@@ -6444,8 +6539,9 @@
 
 			if (isFarmMail) {
 				const { Letters } = HWHClasses;
-				const letterIds = Letters.filter(mailFarm);
+				const letterIds = Letters.filter(mailFarm).filter(id => !collected.letters.has(id));
 				if (letterIds.length) {
+					letterIds.forEach(id => collected.letters.add(id));
 					farmCaller.add({
 						name: 'mailFarm',
 						args: { letterIds },
@@ -6454,11 +6550,11 @@
 			}
 
 			if (farmCaller.isEmpty()) {
-				setProgress(I18N('NOTHING_TO_COLLECT'), true);
-				return;
+				return prestigeCollected;
 			}
 
-			const farmResults = await farmCaller.send();
+			const farmResults = await farmCaller.sendSequential();
+			farmQuestIds.forEach(id => collected.quests.add(id));
 
 			let countQuests = 0;
 			let countMail = 0;
@@ -6475,7 +6571,7 @@
 			for (let side of sideResult) {
 				const quests = [...(side.newQuests ?? []), ...(side.quests ?? [])];
 				for (let quest of quests) {
-					if ((quest.id < 1e6 || (quest.id >= 2e7 && quest.id < 2001e4)) && quest.state == 2) {
+					if ((quest.id < 1e6 || (quest.id >= 2e7 && quest.id < 20010100)) && quest.state == 2) {
 						questsIds.push(quest.id);
 					}
 				}
@@ -6496,9 +6592,11 @@
 							args: { questId },
 						});
 						farmQuestIds.push(questId);
+						collected.quests.add(+questId);
 						countQuests++;
-					} else if (questId >= 2e7 && questId < 2001e4) {
+					} else if (questId >= 2e7 && questId < 20010100) {
 						farmQuestIds.push(questId);
+						collected.quests.add(+questId);
 						newQuestIds.push(questId);
 						countQuests++;
 					}
@@ -6516,14 +6614,14 @@
 					break;
 				}
 
-				await recursiveCaller.send();
+				await recursiveCaller.sendSequential();
 				const sideResult = recursiveCaller.sideResult('questFarm', true);
 				sideResult.push(...recursiveCaller.sideResult('quest_questsFarm', true));
 
 				for (let side of sideResult) {
 					const quests = [...(side.newQuests ?? []), ...(side.quests ?? [])];
 					for (let quest of quests) {
-						if ((quest.id < 1e6 || (quest.id >= 2e7 && quest.id < 2001e4)) && quest.state == 2) {
+						if ((quest.id < 1e6 || (quest.id >= 2e7 && quest.id < 20010100)) && quest.state == 2) {
 							questsIds.push(quest.id);
 						}
 					}
@@ -6531,10 +6629,9 @@
 				questsIds = [...new Set(questsIds)];
 			}
 
-			setProgress(I18N('COLLECT_REWARDS_AND_MAIL', { countQuests, countMail }), true);
-		} catch (error) {
-			console.error('Error in questAllFarm:', error);
-		}
+			collected.countQuests += countQuests;
+			collected.countMail += countMail;
+			return true;
 	}
 
 	function countdownTimer(seconds, message, onClick = null, autoHide = true, stopOnClick = true) {
@@ -7073,6 +7170,23 @@
 			}
 		}
 
+		// Claim rewards one command at a time; never retry a possibly applied claim.
+		async sendSequential() {
+			for (const call of this.calls) {
+				const single = new Caller(call);
+				try {
+					await single.send();
+				} catch (error) {
+					throw new Error(`${call.name} ${JSON.stringify(call.args)}: ${error.message}`);
+				}
+				for (const name of Object.keys(single.results)) {
+					(this.results[name] ||= []).push(...single.results[name]);
+					(this.sideResults[name] ||= []).push(...single.sideResults[name]);
+				}
+			}
+			return this;
+		}
+
 		async send() {
 			if (!this.calls.length) {
 				throw new Error('No calls to send.');
@@ -7088,6 +7202,9 @@
 			try {
 				const response = await Send({ calls: callsWithIdent });
 
+				if (response == null || typeof response !== 'object') {
+					throw new Error(`Invalid response for ${this.calls.map(call => call.name).join(', ')}`);
+				}
 				if (response.error) {
 					this.handleError(response.error);
 				}
@@ -7146,7 +7263,11 @@
 		}
 
 		static async send(calls) {
-			return new Caller(calls).execute();
+			const caller = new Caller(calls);
+			if (!Array.isArray(calls)) return caller.execute();
+			if (!calls.length) return [];
+			await caller.send();
+			return caller.result(null, true);
 		}
 	}
 
@@ -8109,9 +8230,23 @@
 			}]
 		}
 
-		this.start = function (titanit) {
+		this.start = async function (titanit) {
 			maxDungeonActivity = titanit || getInput('countTitanit');
-			send(callsExecuteDungeon, startDungeon);
+			try {
+				const quests = await Caller.send('questGetAll');
+				for (const quest of quests) {
+					if (quest.state != 2 || !(quest.reward?.consumable?.[81] > 0)) continue;
+					const questId = +quest.id;
+					if (questId < 1e6) {
+						await Caller.send({ name: 'questFarm', args: { questId } });
+					} else if (questId >= 2e7 && questId < 20010100) {
+						await Caller.send({ name: 'quest_questsFarm', args: { questIds: [questId] } });
+					}
+				}
+				send(callsExecuteDungeon, startDungeon);
+			} catch (error) {
+				endDungeon('errorRequest', error);
+			}
 		}
 
 		/**
@@ -8129,7 +8264,7 @@
 			teamGetFavor = res[2].result.response;
 			dungeonActivity = res[3].result.response.stat.todayDungeonActivity;
 			titanGetAll = Object.values(res[4].result.response);
-			HWHData.countPredictionCard = res[5].result.response.consumable[81];
+			HWHData.countPredictionCard = res[5].result.response.consumable?.[81] || 0;
 
 			teams.hero = {
 				favor: teamGetFavor.dungeon_hero,
@@ -8194,11 +8329,12 @@
 		 *
 		 */
 		async function checkFloor(dungeonInfo) {
+			try {
 			if (!('floor' in dungeonInfo) || dungeonInfo.floor?.state == 2) {
-				saveProgress();
+				await saveProgress();
 				return;
 			}
-			checkTalent(dungeonInfo);
+			await checkTalent(dungeonInfo);
 			// console.log(dungeonInfo, dungeonActivity);
 			maxDungeonActivity = +getInput('countTitanit');
 			setProgress(`${I18N('DUNGEON')}: ${I18N('TITANIT')} ${dungeonActivity}/${maxDungeonActivity} ${talentMsg}`);
@@ -8213,9 +8349,12 @@
 			//const primeElement = dungeonInfo.elements.prime;
 			if (floorType == "battle") {
 				const calls = [];
+				const choices = [];
 				for (let teamNum in floorChoices) {
-					attackerType = floorChoices[teamNum].attackerType;
-					const args = fixTitanTeam(teams[attackerType]);
+					const attackerType = floorChoices[teamNum].attackerType;
+					if (!teams[attackerType]) continue;
+					const args = { ...teams[attackerType], heroes: [...teams[attackerType].heroes] };
+					if (attackerType != 'hero') fixTitanTeam(args);
 					if (attackerType == 'neutral') {
 						args.heroes = getNeutralTeam();
 					}
@@ -8223,6 +8362,7 @@
 						continue;
 					}
 					args.teamNum = teamNum;
+					choices.push({ teamNum, attackerType });
 					calls.push({
 						name: "dungeonStartBattle",
 						args,
@@ -8236,16 +8376,20 @@
 				const battleDatas = await Send({ calls })
 					.then(e => e.results.map(n => n.result.response))
 				const battleResults = [];
-				for (n in battleDatas) {
-					battleData = battleDatas[n]
-					battleData.progress = [{ attackers: { input: ["auto", 0, 0, "auto", 0, 0] } }];
-					battleResults.push(await Calc(battleData).then(result => {
-						result.teamNum = n;
-						result.attackerType = floorChoices[n].attackerType;
+				for (let n = 0; n < battleDatas.length; n++) {
+					const battleData = battleDatas[n];
+					battleResults.push(await calculateDungeonBattle(battleData).then(result => {
+						result.teamNum = choices[n].teamNum;
+						result.attackerType = choices[n].attackerType;
 						return result;
 					}));
 				}
-				processingPromises(battleResults)
+				await processingPromises(battleResults);
+			} else {
+				endDungeon('unknownFloor', dungeonInfo);
+			}
+			} catch (error) {
+				endDungeon('errorRequest', error);
 			}
 		}
 
@@ -8273,7 +8417,14 @@
 			talentMsg = `<br>TMNT Talent: ${doorsAmount}/3 ${talentMsgReward}<br>`;
 		}
 
-		function processingPromises(results) {
+		async function processingPromises(results) {
+			const startedBattles = results.length;
+			results = results.filter(result => result?.result?.win &&
+				(!isChecked('dungeonStopOnDeath') || !hasDungeonCasualties(result)));
+			if (!results.length) {
+				endDungeon('noSafeBattle', 'No acceptable local battle result; see dungeon diagnostics in console');
+				return;
+			}
 			let selectBattle = results[0];
 			if (results.length < 2) {
 				// console.log(selectBattle);
@@ -8281,7 +8432,10 @@
 					endDungeon('dungeonEndBattle\n', selectBattle);
 					return;
 				}
-				endBattle(selectBattle);
+				if (startedBattles > 1) {
+					selectBattle = await startBattle(selectBattle.teamNum, selectBattle.attackerType);
+				}
+				await endBattle(selectBattle);
 				return;
 			}
 
@@ -8300,8 +8454,7 @@
 				return;
 			}
 
-			startBattle(selectBattle.teamNum, selectBattle.attackerType)
-				.then(endBattle);
+			await endBattle(await startBattle(selectBattle.teamNum, selectBattle.attackerType));
 		}
 
 		/**
@@ -8310,7 +8463,8 @@
 		 */
 		function startBattle(teamNum, attackerType) {
 			return new Promise(function (resolve, reject) {
-				args = fixTitanTeam(teams[attackerType]);
+				const args = { ...teams[attackerType], heroes: [...teams[attackerType].heroes] };
+				if (attackerType != 'hero') fixTitanTeam(args);
 				args.teamNum = teamNum;
 				if (attackerType == 'neutral') {
 					const titans = titanGetAll.filter(e => !titansStates[e.id]?.isDead)
@@ -8325,6 +8479,7 @@
 				}
 				send(startBattleCall, resultBattle, {
 					resolve,
+					reject,
 					teamNum,
 					attackerType
 				});
@@ -8335,35 +8490,53 @@
 		 *
 		 */
 		function resultBattle(resultBattles, args) {
-			battleData = resultBattles.results[0].result.response;
-			battleType = "get_tower";
-			if (battleData.type == "dungeon_titan") {
-				battleType = "get_titan";
-			}
-			battleData.progress = [{ attackers: { input: ["auto", 0, 0, "auto", 0, 0] } }];
-			BattleCalc(battleData, battleType, function (result) {
+			const battleData = resultBattles.results[0].result.response;
+			calculateDungeonBattle(battleData).then(function (result) {
 				result.teamNum = args.teamNum;
 				result.attackerType = args.attackerType;
 				args.resolve(result);
+			}).catch(args.reject);
+		}
+
+		function hasDungeonCasualties(battleInfo) {
+			const attackers = battleInfo.battleData?.attackers || {};
+			const states = battleInfo.progress?.[0]?.attackers?.heroes || {};
+			return Object.entries(states).some(([id, state]) => {
+				const unit = attackers[id];
+				return unit && unit.type !== 'pet' && (state.isDead === true || (typeof state.hp === 'number' && state.hp <= 0));
 			});
+		}
+
+		async function calculateDungeonBattle(battleData) {
+			let result;
+			for (let attempt = 0; attempt < 20; attempt++) {
+				const battle = structuredClone(battleData);
+				battle.progress = [{ attackers: { input: ['auto', 0, 0, 'auto', 0, attempt ? 1 + Math.random() * 14 : 0] } }];
+				result = await Calc(battle);
+				if (result?.result?.win && (!isChecked('dungeonStopOnDeath') || !hasDungeonCasualties(result))) return result;
+			}
+			console.warn('Dungeon: no acceptable local battle result after 20 attempts', {
+				win: result?.result?.win, casualties: result && hasDungeonCasualties(result),
+				attackers: result?.battleData?.attackers, states: result?.progress?.[0]?.attackers?.heroes,
+			});
+			return result;
 		}
 		/**
 		 * Finishing the fight
 		 *
 		 */
 		async function endBattle(battleInfo) {
+			if (isChecked('dungeonStopOnDeath') && hasDungeonCasualties(battleInfo)) {
+				endDungeon('heroDied', battleInfo);
+				return;
+			}
 			if (battleInfo.result.win) {
 				const args = {
 					result: battleInfo.result,
 					progress: battleInfo.progress,
 				}
-				if (HWHData.countPredictionCard > 0) {
-					args.isRaid = true;
-				} else {
-					const timer = getTimer(battleInfo.battleTime);
-					console.log(timer);
-					await countdownTimer(timer, `${I18N('DUNGEON')}: ${I18N('TITANIT')} ${dungeonActivity}/${maxDungeonActivity} ${talentMsg}`);
-				}
+				const timer = getTimer(battleInfo.battleTime);
+				await countdownTimer(timer, `${I18N('DUNGEON')}: ${I18N('TITANIT')} ${dungeonActivity}/${maxDungeonActivity} ${talentMsg}`);
 				const calls = [{
 					name: "dungeonEndBattle",
 					args,
@@ -8395,7 +8568,7 @@
 				return;
 			}
 			dungeonGetInfo = battleResult.dungeon ?? battleResult;
-			dungeonActivity += battleResult.reward.dungeonActivity ?? 0;
+			dungeonActivity += battleResult.reward?.dungeonActivity ?? 0;
 			checkFloor(dungeonGetInfo);
 		}
 
@@ -8448,20 +8621,20 @@
 			return titans;
 		}
 
-		function saveProgress() {
-			let saveProgressCall = {
-				calls: [{
-					name: "dungeonSaveProgress",
-					args: {},
-					ident: "body"
-				}]
+		async function saveProgress() {
+			await Caller.send('dungeonSaveProgress');
+			const info = await Caller.send('dungeonGetInfo');
+			if (!info?.floor || info.floor.state == 2) {
+				endDungeon('checkpoint', info);
+				return;
 			}
-			send(saveProgressCall, resultEndBattle);
+			await checkFloor(info);
 		}
 
 		function endDungeon(reason, info) {
-			console.warn(reason, info);
-			setProgress(`${I18N('DUNGEON')} ${I18N('COMPLETED')}`, true);
+			console.log('Dungeon stopped:', reason, info);
+			const stopped = { uk: 'зупинено', en: 'stopped', ru: 'остановлено' }[getLang()];
+			setProgress(`${I18N('DUNGEON')}: ${stopped} (${reason}), ${I18N('TITANIT')} ${dungeonActivity}/${maxDungeonActivity}`, true);
 			resolve();
 		}
 	}
@@ -8933,7 +9106,6 @@
 		}
 
 		function endTower(reason, info) {
-			console.log(reason, info);
 			if (reason != 'noTower') {
 				farmTowerRewards(reason);
 			}
@@ -9366,7 +9538,6 @@
 			if (!['Peace_time', 'disabled'].includes(reason)) {
 				titanArenaFarmDailyReward();
 			}
-			console.log(reason, info);
 			setProgress(`${I18N('TITAN_ARENA')} ${I18N('COMPLETED')}!`, true);
 			resolve();
 		}
@@ -11044,7 +11215,6 @@
 				return;
 			}
 
-			console.log(weCanDo);
 			let taskList = [];
 			if (this.isAuto) {
 				taskList = weCanDo;
@@ -11072,7 +11242,6 @@
 			for (const task of taskList) {
 				if (task.checked) {
 					const quest = this.dataQuests[task.name];
-					console.log(quest.description);
 
 					if (quest.doItCall) {
 						const doItCall = quest.doItCall.call(this);
@@ -14286,7 +14455,6 @@
 		}
 
 		check() {
-			console.log(new Date(this.time));
 			if (Date.now() > this.time) {
 				this.timeout = null;
 				this.start();
@@ -14299,7 +14467,6 @@
 		async start() {
 			if (this.timeout) {
 				const time = this.timeDiff(this.time, Date.now());
-				console.log(new Date(this.time));
 				setProgress(I18N('TIMER_ALREADY', { time }), false, hideProgress);
 				return;
 			}
@@ -14312,7 +14479,6 @@
 			const attempts = refill.amount;
 
 			if (!attempts) {
-				console.log(new Date(this.time));
 				const time = this.check();
 				setProgress(I18N('NO_ATTEMPTS_TIMER_START', { time }), false, hideProgress);
 				return;
@@ -14355,7 +14521,6 @@
 				wins += resultInfo.win;
 				coins += resultInfo.reward ? resultInfo.reward.coin[39] : 0;
 
-				console.log(endBattle.result);
 				if (winStreak.progress == winStreak.nextStage) {
 					const farm = await Caller.send('epicBrawl_farmWinStreak');
 					coins += farm.coin[39];
@@ -14376,7 +14541,6 @@
 				);
 			}
 
-			console.log(new Date(this.time));
 			const time = this.check();
 			setProgress(
 				I18N('EPIC_BRAWL_RESULT', {
