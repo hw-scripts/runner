@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HWrunner
 // @namespace    https://github.com/hw-scripts/runner
-// @version      1.1.22
+// @version      1.1.29
 // @description  Hero Wars autorunner
 // @description:en Hero Wars autorunner
 // @description:uk Автоматичний працівник для Hero Wars
@@ -324,7 +324,9 @@
 						reject(new Error(`Empty or invalid JSON response for ${names} (HTTP ${xhr?.status ?? 0})`));
 						return;
 					}
-					resolve(response);
+					const request = typeof json === 'string' ? JSON.parse(json) : json;
+					const normalized = ignoreUnavailablePrestigeReward(response, request);
+					resolve(normalized || response);
 				}, pr);
 			} catch (e) {
 				reject(e);
@@ -6128,11 +6130,12 @@
 			(selected[item.type] ??= {})[item.id] = amount;
 			activity += amount * item.value;
 		}
-		return { items: selected, activity };
+		return { items: selected, activity, eligibleCount: candidates.length,
+			minItemValue: candidates.length ? Math.min(...candidates.map(item => item.value)) : null };
 	}
 
 	async function fillActive() {
-		const [quests, inv, clanInfo, heroes] = await Caller.send(['questGetAll', 'inventoryGet', 'clanGetInfo', 'heroGetAll']);
+		let [quests, inv, clanInfo, heroes] = await Caller.send(['questGetAll', 'inventoryGet', 'clanGetInfo', 'heroGetAll']);
 		const maxActive = Math.max(0, 2000 - Number(clanInfo.stat.todayItemsActivity));
 		if (!maxActive) {
 			setProgress(I18N('NO_MORE_ACTIVITY'), true);
@@ -6165,25 +6168,44 @@
 		if (!Number.isSafeInteger(requested) || requested <= 0) return;
 		const target = Math.min(requested, maxActive);
 		const itemLibrary = lib.getData('inventoryItem');
-		let protectedItems;
 		try {
-			protectedItems = calculateHeroEquipmentProtection(heroes, lib.data?.hero, itemLibrary, inv);
+			const initialActivity = Number(clanInfo.stat.todayItemsActivity);
+			if (!Number.isFinite(initialActivity)) throw new Error('Missing item activity counter');
+			let currentActivity = initialActivity;
+			let sent = false;
+			let exhausted = false;
+			while (currentActivity - initialActivity < target && currentActivity < 2000) {
+				const protectedItems = calculateHeroEquipmentProtection(heroes, lib.data?.hero, itemLibrary, inv);
+				const remainingTarget = target - (currentActivity - initialActivity);
+				const remainingLimit = 2000 - currentActivity;
+				const plan = planActivityExchange(inv, itemLibrary, lib.data?.enum?.heroColor, reserves, remainingTarget, remainingLimit, protectedItems);
+				if (plan.activity <= 0) {
+					exhausted = true;
+					console.warn('Activity exchange cannot continue', {
+						remainingTarget, remainingLimit, eligibleCount: plan.eligibleCount, minItemValue: plan.minItemValue,
+					});
+					break;
+				}
+				const response = await Caller.send({ name: 'clanItemsForActivity', args: { items: plan.items } });
+				sent = true;
+				console.log('Activity exchange', { plan, response });
+				[inv, clanInfo, heroes] = await Caller.send(['inventoryGet', 'clanGetInfo', 'heroGetAll']);
+				const nextActivity = Number(clanInfo?.stat?.todayItemsActivity);
+				if (!Number.isFinite(nextActivity) || nextActivity <= currentActivity) {
+					throw new Error('Item activity counter did not increase after exchange');
+				}
+				currentActivity = nextActivity;
+			}
+			if (!sent) {
+				setProgress(I18N('NOT_ENOUGH_ITEMS'), true);
+				return;
+			}
+			try { await cheats.refreshInventory(); } catch (error) { console.warn('Unable to refresh inventory after exchange', error); }
+			setProgress(`${I18N('ACTIVITY_RECEIVED')}: ${currentActivity - initialActivity}/${target}${exhausted ? `<br>${I18N('NOT_ENOUGH_ITEMS')}` : ''}`, true);
 		} catch (error) {
-			console.error('Unable to calculate hero equipment reserves', error);
+			console.error('Activity exchange stopped', error);
 			setProgress(`${I18N('ITEM_EXCHANGE')}: ${error.message}`, true);
-			return;
 		}
-		const plan = planActivityExchange(inv, itemLibrary, lib.data?.enum?.heroColor, reserves, target, maxActive, protectedItems);
-		if (plan.activity <= 0) {
-			console.warn('Not enough eligible items for activity exchange', { target, available: plan.activity });
-			setProgress(I18N('NOT_ENOUGH_ITEMS'), true);
-			return;
-		}
-		const response = await Caller.send({ name: 'clanItemsForActivity', args: { items: plan.items } });
-		console.log('Activity exchange', { plan, response });
-		try { await cheats.refreshInventory(); } catch (error) { console.warn('Unable to refresh inventory after exchange', error); }
-		const receivedActivity = Number(response);
-		setProgress(`${I18N('ACTIVITY_RECEIVED')}: ${Number.isFinite(receivedActivity) ? receivedActivity : plan.activity}`, true);
 	}
 
 	async function buyHeroFragments() {
@@ -6535,6 +6557,24 @@
 	}
 
 	async function rewardsAndMailFarmPass(isFarmMail, collected) {
+			let dailyCollected = false;
+			const dailyBonus = await Caller.send('dailyBonusGetInfo');
+			if (dailyBonus?.availableToday) {
+				let vip = 0;
+				if (dailyBonus.availableVip) {
+					const user = await Caller.send('userGetInfo');
+					const points = Number(user?.vipPoints);
+					const threshold = Number(lib.getData('dailyBonusStatic')?.[`${dailyBonus.currentDay}_0_0`]?.vipLevelDouble);
+					const levels = Object.values(lib.getData('level')?.vip ?? {});
+					if (!Number.isFinite(points) || !Number.isFinite(threshold) || !levels.length) {
+						throw new Error('Unable to determine daily bonus VIP eligibility');
+					}
+					const vipLevel = levels.reduce((max, level) => points >= Number(level.vipPoints) ? Math.max(max, Number(level.level) || 0) : max, 0);
+					vip = vipLevel >= threshold ? 1 : 0;
+				}
+				await Caller.send({ name: 'dailyBonusFarm', args: { vip } });
+				dailyCollected = true;
+			}
 			let prestigeCollected = false;
 			try {
 				const prestige = await Caller.send('clan_prestigeFarmAllRewards');
@@ -6561,6 +6601,7 @@
 			const questsFarm = questGetAll.filter((e) => e.state == 2 && !collected.quests.has(rewardQuestClaimKey(e)));
 			const mailFarm = mailGetAll?.letters || [];
 			const stagesOffers = specialOffer.filter(e => e.offerType === "stagesOffer" && e.farmedStage == -1 && !collected.offers.has(e.id));
+			const dailyOffers = specialOffer.filter(e => e.offerType === 'dailyReward' && e.type === 'reward' && e.reward && !collected.offers.has(e.id));
 
 			const listBattlePass = {
 				[battlePassInfo.id]: battlePassInfo.battlePass,
@@ -6579,6 +6620,16 @@
 			const currentTime = Date.now();
 
 			const farmCaller = new Caller();
+			let dailyOfferCollected = false;
+			for (const offer of dailyOffers) {
+				try {
+					await Caller.send({ name: 'specialOffer_farmReward', args: { offerId: offer.id } });
+					dailyOfferCollected = true;
+				} catch (error) {
+					if (!String(error?.message).startsWith('Already in specialOffer_farmReward: Reward has been farmed\n')) throw error;
+				}
+				collected.offers.add(offer.id);
+			}
 
 			for (const offer of stagesOffers) {
 				const offerId = offer.id;
@@ -6597,6 +6648,7 @@
 
 			const farmQuestKeys = [];
 			const questIds = [];
+			const nonClanQuestIds = [];
 			for (let quest of questsFarm) {
 				const questId = +quest.id;
 
@@ -6611,6 +6663,7 @@
 						continue;
 					}
 					const chain = questChainBPass[questInfo.chain];
+					if (!chain) continue;
 					const battlePass = listBattlePass[chain.battlePass];
 					if (!battlePass) {
 						continue;
@@ -6628,7 +6681,13 @@
 					}
 				}
 
-				if (questId >= 2e7 && questId < 14e8) {
+				if (questId > 0 && questId < 1e6) {
+					nonClanQuestIds.push(questId);
+					farmQuestKeys.push(rewardQuestClaimKey(quest));
+					continue;
+				}
+				// The native client claims this repeatable guild quest with questFarm.
+				if (questId >= 2e7 && questId < 14e8 && questId !== 20000181) {
 					questIds.push(questId);
 					farmQuestKeys.push(rewardQuestClaimKey(quest));
 					continue;
@@ -6641,6 +6700,9 @@
 				farmQuestKeys.push(rewardQuestClaimKey(quest));
 			}
 
+			if (nonClanQuestIds.length) {
+				farmCaller.add({ name: 'quest_farmNonClan', args: { questIds: nonClanQuestIds } });
+			}
 			if (questIds.length) {
 				farmCaller.add({
 					name: 'quest_questsFarm',
@@ -6661,7 +6723,7 @@
 			}
 
 			if (farmCaller.isEmpty()) {
-				return prestigeCollected;
+				return prestigeCollected || dailyCollected || dailyOfferCollected;
 			}
 
 			const farmResults = await farmCaller.sendSequential();
@@ -6671,7 +6733,7 @@
 			let countMail = 0;
 
 			const questFarm = farmResults.result('questFarm', true);
-			countQuests += questFarm.length + questIds.length;
+			countQuests += questFarm.length + questIds.length + nonClanQuestIds.length;
 			countMail += Object.keys(farmResults.result('mailFarm')).length;
 
 			// The next pass reads fresh quest state, including repeatable quests whose
