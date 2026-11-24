@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HWrunner
 // @namespace    https://github.com/hw-scripts/runner
-// @version      1.1.39
+// @version      1.1.40
 // @description  Hero Wars autorunner
 // @description:en Hero Wars autorunner
 // @description:uk Автоматичний працівник для Hero Wars
@@ -6466,9 +6466,18 @@
 			}
 		}
 
-		const slots = shops[1].slots;
-		for (let i = 4; i <= 6; i++) {
-			if (!slots[i].bought && slots[i]?.cost?.gold) {
+		const slots = shops[1]?.slots || {};
+		const potion = slots[2];
+		let needExperience = false;
+		if (potion && !potion.bought && potion.cost?.gold &&
+			Object.keys(potion.cost).length === 1 && [9, 10, 11, 12].some(id => potion.reward?.consumable?.[id])) {
+			const heroes = await Caller.send('heroGetAll');
+			const level = Number(user.level);
+			needExperience = Number.isFinite(level) && level > 0 && Object.values(heroes || {}).some(hero =>
+				Number(hero?.level) > 0 && Number(hero.level) < level);
+		}
+		for (const i of (needExperience ? [2, 4, 5, 6] : [4, 5, 6])) {
+			if (slots[i] && !slots[i].bought && slots[i]?.cost?.gold) {
 				const costGold = slots[i].cost.gold;
 				if (gold < costGold) {
 					continue;
