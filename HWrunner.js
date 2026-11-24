@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HWrunner
 // @namespace    https://github.com/hw-scripts/runner
-// @version      1.1.29
+// @version      1.1.39
 // @description  Hero Wars autorunner
 // @description:en Hero Wars autorunner
 // @description:uk Автоматичний працівник для Hero Wars
@@ -1231,7 +1231,7 @@
 			get msg() {
 				return I18N('SELL_HERO_SOULS');
 			},
-			result: sellHeroSoulsForGold,
+			result: exchangeHeroSouls,
 			get title() {
 				return I18N('SELL_HERO_SOULS_TITLE');
 			},
@@ -6135,7 +6135,7 @@
 	}
 
 	async function fillActive() {
-		let [quests, inv, clanInfo, heroes] = await Caller.send(['questGetAll', 'inventoryGet', 'clanGetInfo', 'heroGetAll']);
+		let [inv, clanInfo, heroes] = await Caller.send(['inventoryGet', 'clanGetInfo', 'heroGetAll']);
 		const maxActive = Math.max(0, 2000 - Number(clanInfo.stat.todayItemsActivity));
 		if (!maxActive) {
 			setProgress(I18N('NO_MORE_ACTIVITY'), true);
@@ -6158,11 +6158,9 @@
 			return;
 		}
 		setSaveVal('itemExchangeReserves', reserves.join('/'));
-		const quest = quests.find(e => e.id > 10046 && e.id < 10051);
-		const suggested = Math.min(maxActive, Math.max(0, 1750 - Number(quest?.progress ?? 1750)) || maxActive);
 		const answer = await popup.confirm(I18N('EXCHANGE_ITEMS', { maxActive }), [
 			{ result: false, isClose: true },
-			{ msg: I18N('GET_ACTIVITY'), isInput: true, default: String(suggested), color: 'green' },
+			{ msg: I18N('GET_ACTIVITY'), isInput: true, default: String(maxActive), color: 'green' },
 		]);
 		const requested = Number(answer);
 		if (!Number.isSafeInteger(requested) || requested <= 0) return;
@@ -6524,27 +6522,59 @@
 		} } }] };
 	}
 
-	async function openArtifactChestsWithKeys() {
+	async function openArtifactChestsWithKeys(token = { stopped: false }) {
 		const inventory = await Caller.send('inventoryGet');
+		if (token.stopped) return;
 		const keys = Number(inventory?.consumable?.[45]);
-		if (!Number.isSafeInteger(keys) || keys <= 0) return;
-		let remaining = keys;
-		while (remaining > 0) {
+		let remaining = Number.isSafeInteger(keys) && keys > 0 ? keys : 0;
+		while (remaining > 0 && !token.stopped) {
+			setProgress(`${I18N('REWARDS_AND_MAIL')}: ${I18N('STOP')}`, false, () => { token.stopped = true; });
 			const amount = remaining >= 100 ? 100 : remaining > 10 ? 10 : 1;
 			const result = await Caller.send({ name: 'artifactChestOpen', args: { amount, free: true } });
-			if (result?.artifactKeysUnavailable) return;
+			if (result?.artifactKeysUnavailable) break;
 			remaining -= amount;
+		}
+		// One free titan artifact chest consumes one consumable 55 (observed in HAR).
+		const titanSpheres = Number(inventory?.consumable?.[55]);
+		remaining = Number.isSafeInteger(titanSpheres) && titanSpheres > 0 ? titanSpheres : 0;
+		while (remaining > 0 && !token.stopped) {
+			setProgress(`${I18N('REWARDS_AND_MAIL')}: ${I18N('STOP')}`, false, () => { token.stopped = true; });
+			const amount = remaining >= 100 ? 100 : remaining > 10 ? 10 : 1;
+			await Caller.send({ name: 'titanArtifactChestOpen', args: { amount, free: true } });
+			remaining -= amount;
+		}
+		// Summoning spheres are coin 13; paid=false keeps the summon free of emeralds.
+		const summonSpheres = Number(inventory?.coin?.[13]);
+		remaining = Number.isSafeInteger(summonSpheres) && summonSpheres > 0 ? summonSpheres : 0;
+		while (remaining > 0 && !token.stopped) {
+			setProgress(`${I18N('REWARDS_AND_MAIL')}: ${I18N('STOP')}`, false, () => { token.stopped = true; });
+			const amount = remaining >= 100 ? 100 : remaining > 10 ? 10 : 1;
+			await Caller.send({ name: 'titanUseSummonCircle', args: { circleId: 1, paid: false, amount } });
+			remaining -= amount;
+		}
+		if (token.stopped) return;
+		// Refresh after summoning: newly obtained stones may also be exchangeable.
+		const currentInventory = summonSpheres > 0 ? await Caller.send('inventoryGet') : inventory;
+		if (token.stopped) return;
+		const stones = currentInventory?.fragmentTitan ?? {};
+		if (!Object.values(stones).some(count => Number(count) > 0)) return;
+		const titans = await Caller.send('titanGetAll');
+		if (token.stopped) return;
+		if (Object.entries(stones).some(([id, count]) => Number(count) > 0 && Number(titans?.[id]?.star) >= 6)) {
+			await Caller.send('inventoryExchangeTitanStones');
 		}
 	}
 
 	async function rewardsAndMailFarm(isFarmMail = true) {
 		const collected = { quests: new Set(), offers: new Set(), letters: new Set(), prestige: new Set(), countQuests: 0, countMail: 0 };
+		const token = { stopped: false };
 		try {
 			// Open before reading quests so newly completed chest quests are collected too.
-			await openArtifactChestsWithKeys();
-			while (await rewardsAndMailFarmPass(isFarmMail, collected)) {
-				await openArtifactChestsWithKeys();
+			await openArtifactChestsWithKeys(token);
+			while (!token.stopped && await rewardsAndMailFarmPass(isFarmMail, collected)) {
+				if (!token.stopped) await openArtifactChestsWithKeys(token);
 			}
+			if (token.stopped) { setProgress(I18N('STOPPED'), true); return; }
 			setProgress(I18N('COLLECT_REWARDS_AND_MAIL', { countQuests: collected.countQuests, countMail: collected.countMail }), true);
 		} catch (error) {
 			console.error('Error in rewardsAndMailFarm:', error);
@@ -6555,6 +6585,9 @@
 	function rewardQuestClaimKey(quest) {
 		return `${quest.id}:${quest.createTime ?? ''}:${quest.farmCount ?? 0}`;
 	}
+
+	// Confirmed questFarm calls for accumulated guild rewards in game captures.
+	const accumulatedGuildQuestIds = new Set([20000182, 20000185, 20000186, 20000188, 20000189, 20000191, 20000901, 20000902]);
 
 	async function rewardsAndMailFarmPass(isFarmMail, collected) {
 			let dailyCollected = false;
@@ -6598,7 +6631,10 @@
 				'battlePass_getInfo',
 				'battlePass_getSpecial',
 			]);
-			const questsFarm = questGetAll.filter((e) => e.state == 2 && !collected.quests.has(rewardQuestClaimKey(e)));
+			// These repeatable guild quests can have accumulated rewards while still in state 1.
+			const questsFarm = questGetAll.filter((e) => (e.state == 2 ||
+				(e.state == 1 && accumulatedGuildQuestIds.has(Number(e.id)) && Number(e.farmCount) > 0)) &&
+				!collected.quests.has(rewardQuestClaimKey(e)));
 			const mailFarm = mailGetAll?.letters || [];
 			const stagesOffers = specialOffer.filter(e => e.offerType === "stagesOffer" && e.farmedStage == -1 && !collected.offers.has(e.id));
 			const dailyOffers = specialOffer.filter(e => e.offerType === 'dailyReward' && e.type === 'reward' && e.reward && !collected.offers.has(e.id));
@@ -6686,8 +6722,8 @@
 					farmQuestKeys.push(rewardQuestClaimKey(quest));
 					continue;
 				}
-				// The native client claims this repeatable guild quest with questFarm.
-				if (questId >= 2e7 && questId < 14e8 && questId !== 20000181) {
+				// The native client claims these repeatable guild quests with questFarm.
+				if (questId >= 2e7 && questId < 14e8 && questId !== 20000181 && !accumulatedGuildQuestIds.has(questId)) {
 					questIds.push(questId);
 					farmQuestKeys.push(rewardQuestClaimKey(quest));
 					continue;
@@ -6944,6 +6980,26 @@
 		setProgress(msg, 5000);
 	}
 
+	function upgradeResourceCost(cost, inventory, user) {
+		if (!cost || typeof cost !== 'object' || Array.isArray(cost) || !Object.keys(cost).length) return null;
+		const entries = [];
+		for (const [currency, value] of Object.entries(cost)) {
+			if (value && typeof value === 'object' && !Array.isArray(value)) {
+				if (!Object.keys(value).length) return null;
+				for (const [id, amount] of Object.entries(value)) {
+					const required = Number(amount), available = Number(inventory?.[currency]?.[id]);
+					if (!Number.isFinite(required) || required < 0 || !Number.isFinite(available) || available < required) return null;
+					entries.push({ owner: inventory, currency, id, amount: required });
+				}
+			} else {
+				const required = Number(value), available = Number(user?.[currency]);
+				if (!Number.isFinite(required) || required < 0 || !Number.isFinite(available) || available < required) return null;
+				entries.push({ owner: user, currency, id: null, amount: required });
+			}
+		}
+		return entries;
+	}
+
 	async function updateArtifacts() {
 		const count = +(await popup.confirm(I18N('SET_NUMBER_LEVELS'), [
 			{ msg: I18N('BTN_GO'), isInput: true, default: 10, color: 'green' },
@@ -6954,8 +7010,11 @@
 		}
 		const quest = new questRun();
 		await quest.autoInit();
+		// Plan against private copies; the game state changes only after server calls succeed.
+		for (const name of ['heroGetAll', 'inventoryGet', 'userGetInfo']) {
+			quest.questInfo[name] = JSON.parse(JSON.stringify(quest.questInfo[name]));
+		}
 		const heroes = Object.values(quest.questInfo['heroGetAll']);
-		const inventory = quest.questInfo['inventoryGet'];
 		const calls = [];
 		for (let i = count; i > 0; i--) {
 			const upArtifact = quest.getUpgradeArtifact();
@@ -6973,7 +7032,10 @@
 			}
 			const hero = heroes.find((e) => e.id == upArtifact.heroId);
 			hero.artifacts[upArtifact.slotId].level++;
-			inventory[upArtifact.costCurrency][upArtifact.costId] -= upArtifact.costValue;
+			for (const entry of upArtifact.cost) {
+				if (entry.id === null) entry.owner[entry.currency] -= entry.amount;
+				else entry.owner[entry.currency][entry.id] -= entry.amount;
+			}
 			calls.push({
 				name: 'heroArtifactLevelUp',
 				args: {
@@ -7015,8 +7077,11 @@
 
 		const quest = new questRun();
 		await quest.autoInit();
+		// Keep the planned upgrades and resource spending separate from game state.
+		for (const name of ['heroGetAll', 'inventoryGet', 'userGetInfo']) {
+			quest.questInfo[name] = JSON.parse(JSON.stringify(quest.questInfo[name]));
+		}
 		const heroes = Object.values(quest.questInfo['heroGetAll']);
-		const inventory = quest.questInfo['inventoryGet'];
 		const calls = [];
 		for (let i = count; i > 0; i--) {
 			const upSkin = quest.getUpgradeSkin();
@@ -7034,7 +7099,10 @@
 			}
 			const hero = heroes.find((e) => e.id == upSkin.heroId);
 			hero.skins[upSkin.skinId]++;
-			inventory[upSkin.costCurrency][upSkin.costCurrencyId] -= upSkin.cost;
+			for (const entry of upSkin.cost) {
+				if (entry.id === null) entry.owner[entry.currency] -= entry.amount;
+				else entry.owner[entry.currency][entry.id] -= entry.amount;
+			}
 			calls.push({
 				name: 'heroSkinUpgrade',
 				args: {
@@ -7192,32 +7260,19 @@
 		}
 	}
 
-	async function sellHeroSoulsForGold() {
+	async function exchangeHeroSouls() {
 		const [inventory, heroes] = await Caller.send(['inventoryGet', 'heroGetAll']);
-
-		const calls = [];
-		for (let i in inventory.fragmentHero) {
-			if (heroes[i] && heroes[i].star == 6) {
-				calls.push({
-					name: 'inventorySell',
-					args: {
-						type: 'hero',
-						libId: i,
-						amount: inventory.fragmentHero[i],
-						fragment: true,
-					},
-				});
-			}
+		const hasExchangeableStones = Object.entries(inventory?.fragmentHero ?? {}).some(([id, count]) =>
+			Number(count) > 0 && Number(heroes?.[id]?.star) === 6);
+		if (!hasExchangeableStones) {
+			setProgress(I18N('NOTHING_TO_COLLECT'), true);
+			return;
 		}
-
-		if (!calls.length) {
-			console.log(0);
-			return 0;
-		}
-
-		const rewards = await Caller.send(calls);
-		const gold = rewards.reduce((sum, r) => sum + (r?.gold || 0), 0);
-		setProgress(I18N('GOLD_RECEIVED', { gold }), true);
+		const result = await Caller.send('inventoryExchangeStones');
+		const coins = Number(result?.reward?.coin?.[5]);
+		if (!Number.isFinite(coins) || coins <= 0) throw new Error('Invalid soul stone exchange response');
+		try { await cheats.refreshInventory(); } catch (error) { console.warn('Unable to refresh inventory after soul exchange', error); }
+		setProgress(I18N('SOUL_COINS_RECEIVED', { coins }), true);
 	}
 
 	/** Builds, sends, and resolves batches of game API calls. */
@@ -11428,8 +11483,11 @@
 		}
 
 		getUpgradeArtifact() {
-			const heroes = Object.values(this.questInfo['heroGetAll']);
+			const heroes = Object.values(this.questInfo['heroGetAll'])
+				.filter(hero => hero && Number(hero.id) > 0 && Number(hero.id) < 6000 && hero.power != null && Number.isFinite(Number(hero.power)))
+				.sort((a, b) => Number(b.power) - Number(a.power) || Number(a.id) - Number(b.id)).slice(0, 15);
 			const inventory = this.questInfo['inventoryGet'];
+			const user = this.questInfo['userGetInfo'];
 			const upArt = { heroId: 0, slotId: 0, level: 100 };
 
 			const heroLib = lib.getData('hero');
@@ -11437,8 +11495,7 @@
 
 			for (const hero of heroes) {
 				const heroInfo = heroLib[hero.id];
-				const level = hero.level;
-				if (level < 20) {
+				if (Number(hero.level) < 20) {
 					continue;
 				}
 
@@ -11448,27 +11505,18 @@
 					if (!star) {
 						continue;
 					}
-					const level = art.level;
-					if (level >= 100) {
+					const level = Number(art.level);
+					if (!Number.isInteger(level) || level < 0 || level >= upArt.level) {
 						continue;
 					}
-					const artifactId = heroInfo.artifacts[slotId];
-					const artInfo = artifactLib.id[artifactId];
-					const costNextLevel = artifactLib.type[artInfo.type].levels[level + 1].cost;
-
-					const costCurrency = Object.keys(costNextLevel).pop();
-					const costValues = Object.entries(costNextLevel[costCurrency]).pop();
-					const costId = costValues[0];
-					const costValue = +costValues[1];
-
-					/** TODO: */
-					if (level < upArt.level && inventory[costCurrency][costId] >= costValue) {
+					const artifactId = heroInfo?.artifacts?.[slotId];
+					const artInfo = artifactLib?.id?.[artifactId];
+					const cost = upgradeResourceCost(artifactLib?.type?.[artInfo?.type]?.levels?.[level + 1]?.cost, inventory, user);
+					if (cost) {
 						upArt.level = level;
 						upArt.heroId = hero.id;
 						upArt.slotId = slotId;
-						upArt.costCurrency = costCurrency;
-						upArt.costId = costId;
-						upArt.costValue = costValue;
+						upArt.cost = cost;
 					}
 				}
 			}
@@ -11476,9 +11524,12 @@
 		}
 
 		getUpgradeSkin() {
-			const heroes = Object.values(this.questInfo['heroGetAll']);
+			const heroes = Object.values(this.questInfo['heroGetAll'])
+				.filter(hero => hero && Number(hero.id) > 0 && Number(hero.id) < 6000 && hero.power != null && Number.isFinite(Number(hero.power)))
+				.sort((a, b) => Number(b.power) - Number(a.power) || Number(a.id) - Number(b.id)).slice(0, 15);
 			const inventory = this.questInfo['inventoryGet'];
-			const upSkin = { heroId: 0, skinId: 0, level: 60, cost: 1500 };
+			const user = this.questInfo['userGetInfo'];
+			const upSkin = { heroId: 0, skinId: 0, level: 60 };
 
 			const skinLib = lib.getData('skin');
 
@@ -11489,28 +11540,16 @@
 				}
 
 				for (let skinId in hero.skins) {
-					const level = hero.skins[skinId];
-					if (level >= 60) {
+					const level = Number(hero.skins[skinId]);
+					if (!Number.isInteger(level) || level < 0 || level >= upSkin.level) {
 						continue;
 					}
-					const skinInfo = skinLib[skinId];
-					if (!skinInfo.statData.levels?.[level + 1]) {
-						continue;
-					}
-					const costNextLevel = skinInfo.statData.levels[level + 1].cost;
-
-					const costCurrency = Object.keys(costNextLevel).pop();
-					const costCurrencyId = Object.keys(costNextLevel[costCurrency]).pop();
-					const costValue = +costNextLevel[costCurrency][costCurrencyId];
-
-					/** TODO: */
-					if (level < upSkin.level && costValue < upSkin.cost && inventory[costCurrency][costCurrencyId] >= costValue) {
-						upSkin.cost = costValue;
+					const cost = upgradeResourceCost(skinLib?.[skinId]?.statData?.levels?.[level + 1]?.cost, inventory, user);
+					if (cost) {
+						upSkin.cost = cost;
 						upSkin.level = level;
 						upSkin.heroId = hero.id;
 						upSkin.skinId = skinId;
-						upSkin.costCurrency = costCurrency;
-						upSkin.costCurrencyId = costCurrencyId;
 					}
 				}
 			}
@@ -11518,7 +11557,9 @@
 		}
 
 		getUpgradeTitanArtifact() {
-			const titans = Object.values(this.questInfo['titanGetAll']);
+			const titans = Object.values(this.questInfo['titanGetAll'])
+				.filter(titan => titan && titan.power != null && Number.isFinite(Number(titan.power)))
+				.sort((a, b) => Number(b.power) - Number(a.power) || Number(a.id) - Number(b.id));
 			const inventory = this.questInfo['inventoryGet'];
 			const userInfo = this.questInfo['userGetInfo'];
 			const upArt = { titanId: 0, slotId: 0, level: 120 };
@@ -11528,44 +11569,23 @@
 
 			for (const titan of titans) {
 				const titanInfo = titanLib[titan.id];
-				// const level = titan.level
-				// if (level < 20) {
-				// 	continue;
-				// }
-
 				for (let slotId in titan.artifacts) {
 					const art = titan.artifacts[slotId];
 					const star = art.star;
 					if (!star) {
 						continue;
 					}
-					const level = art.level;
-					if (level >= 120) {
+					const level = Number(art.level);
+					if (!Number.isInteger(level) || level < 0 || level >= upArt.level) {
 						continue;
 					}
-					const artifactId = titanInfo.artifacts[slotId];
-					const artInfo = artTitanLib.id[artifactId];
-					const costNextLevel = artTitanLib.type[artInfo.type].levels[level + 1].cost;
-
-					const costCurrency = Object.keys(costNextLevel).pop();
-					let costValue = 0;
-					let currentValue = 0;
-					if (costCurrency == 'gold') {
-						costValue = costNextLevel[costCurrency];
-						currentValue = userInfo.gold;
-					} else {
-						const costValues = Object.entries(costNextLevel[costCurrency]).pop();
-						const costId = costValues[0];
-						costValue = +costValues[1];
-						currentValue = inventory[costCurrency][costId];
-					}
-
-					/** TODO: */
-					if (level < upArt.level && currentValue >= costValue) {
+					const artifactId = titanInfo?.artifacts?.[slotId];
+					const artInfo = artTitanLib?.id?.[artifactId];
+					const cost = upgradeResourceCost(artTitanLib?.type?.[artInfo?.type]?.levels?.[level + 1]?.cost, inventory, userInfo);
+					if (cost) {
 						upArt.level = level;
 						upArt.titanId = titan.id;
 						upArt.slotId = slotId;
-						break;
 					}
 				}
 			}
@@ -13515,8 +13535,86 @@
 
 	this.HWHClasses.ExecuteCompany = ExecuteCompany;
 
-	/** Plans raids for the missing gear of one hero without spending premium currency. */
+	/** Buys needed gear and plans raids without spending premium currency. */
 	class GearFarmer {
+		getShopNeeds(priorityOrder, heroes, inventory) {
+			const available = structuredClone(inventory ?? {});
+			const needs = new Map();
+			const add = (type, itemId, amount, parents = new Set()) => {
+				const key = `${type}:${itemId}`;
+				if (parents.has(key) || !(amount > 0)) return;
+				const owned = this.getInventoryAmount(available, type, itemId);
+				const missing = Math.max(0, amount - owned);
+				if (available[type]) available[type][itemId] = Math.max(0, owned - amount);
+				if (!missing) return;
+				needs.set(key, (needs.get(key) || 0) + missing);
+				if (type !== 'gear' && type !== 'scroll') return;
+				const next = new Set(parents).add(key);
+				const components = this.getRecipeComponents(type, itemId);
+				if (components.length) {
+					for (const component of components) add(component.type, component.itemId, component.amount * missing, next);
+				} else {
+					const count = Number(this.getItemData(type, itemId).fragmentMergeCost?.fragmentCount) || 0;
+					if (count > 0) add(type === 'gear' ? 'fragmentGear' : 'fragmentScroll', itemId, count * missing, next);
+				}
+			};
+			for (const heroId of priorityOrder) {
+				const hero = heroes?.[heroId];
+				if (!hero) continue;
+				for (const { slotId, itemId } of this.getTierSlots(hero)) {
+					if (!this.isSlotEquipped(hero, slotId) && Number(hero.level) >= this.getGearHeroLevelRequirement(itemId)) add('gear', itemId, 1);
+				}
+			}
+			return needs;
+		}
+
+		getShopPurchase(shops, needs, inventory, userInfo, skipped) {
+			for (const shopId of [1, 4, 5, 6, 8, 9, 10, 17]) {
+				const shop = shops?.[shopId];
+				for (const slot of Object.values(shop?.slots ?? {})) {
+					const key = `${shopId}:${slot.id}`;
+					if (skipped.has(key) || slot.bought || slot.purchaseDisabled || Number(slot.amountAvailable) === 0 && slot.amountAvailable != null) continue;
+					const rewards = Object.entries(slot.reward ?? {});
+					if (rewards.length !== 1 || !['gear', 'scroll', 'fragmentGear', 'fragmentScroll'].includes(rewards[0][0])) continue;
+					const [type, items] = rewards[0];
+					if (!items || typeof items !== 'object' || Object.keys(items).length !== 1) continue;
+					const [itemId, quantity] = Object.entries(items)[0];
+					if (!(Number(quantity) > 0) || !(needs.get(`${type}:${itemId}`) > 0)) continue;
+					const cost = slot.cost;
+					if (!cost || typeof cost !== 'object' || !Object.keys(cost).length) continue;
+					let affordable = true;
+					for (const [currency, amount] of Object.entries(cost)) {
+						if (currency === 'gold') {
+							if (!(Number(amount) > 0) || !(Number(userInfo?.gold) >= Number(amount))) affordable = false;
+						} else if (currency === 'coin' && amount && typeof amount === 'object' && Object.keys(amount).length) {
+							for (const [id, value] of Object.entries(amount)) if (!(Number(value) > 0) || !(Number(inventory?.coin?.[id]) >= Number(value))) affordable = false;
+						} else affordable = false;
+					}
+					if (affordable) return { shopId, slot, key, type, itemId };
+				}
+			}
+			return null;
+		}
+
+		async buyNeededGear(priorityOrder) {
+			const skipped = new Set();
+			while (!this.stopRequested) {
+				const [heroes, inventory, userInfo, shops] = await Caller.send(['heroGetAll', 'inventoryGet', 'userGetInfo', 'shopGetAll']);
+				if (this.stopRequested) return;
+				const needs = this.getShopNeeds(priorityOrder, heroes, inventory);
+				const purchase = this.getShopPurchase(shops, needs, inventory, userInfo, skipped);
+				if (!purchase) return;
+				this.setFarmProgress(I18N('GEAR_FARM_BUYING', { item: this.getItemName(purchase.type, purchase.itemId) }));
+				await Caller.send({ name: 'shopBuy', args: { shopId: purchase.shopId, slot: purchase.slot.id, cost: purchase.slot.cost, reward: purchase.slot.reward } });
+				if (this.stopRequested) return;
+				const updated = await Caller.send('inventoryGet');
+				if (this.getInventoryAmount(updated, purchase.type, purchase.itemId) <= this.getInventoryAmount(inventory, purchase.type, purchase.itemId)) {
+					skipped.add(purchase.key);
+					console.warn('Gear farm: shop purchase did not increase inventory', purchase.key);
+				}
+				await this.refreshClientInventory(updated);
+			}
+		}
 		getHeroName(heroId) {
 			const key = `LIB_HERO_NAME_${heroId}`;
 			const name = cheats.translate(key);
@@ -14240,11 +14338,10 @@
 					return;
 				}
 				const { priorityOrder, energyLimit: configuredEnergyLimit, pauseMs } = settings;
-				if (!configuredEnergyLimit) {
-					return;
-				}
 				farmStarted = true;
 				this.pauseMs = pauseMs;
+				await this.buyNeededGear(priorityOrder);
+				if (this.stopRequested) return;
 				let spent = 0;
 				let raidsDone = 0;
 				let crafted = 0;

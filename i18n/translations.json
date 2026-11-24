@@ -270,9 +270,9 @@
                                "ru":  "Прокачка героев завершена"
                            },
     "GEAR_FARM_TITLE":  {
-                            "en":  "Farms missing gear components for a selected hero using campaign raids only",
-                            "uk":  "Фармить відсутні компоненти спорядження вибраного героя лише рейдами кампанії",
-                            "ru":  "Фармит недостающие компоненты экипировки выбранного героя только рейдами кампании"
+                            "en":  "Buys needed equipment in shops, then farms remaining components in the campaign",
+                            "uk":  "Купує потрібне спорядження в магазинах, потім фармить решту компонентів у кампанії",
+                            "ru":  "Покупает нужную экипировку в магазинах, затем фармит остальные компоненты в кампании"
                         },
     "GEAR_FARM_PRIORITY":  {
                                "en":  "Gear Farming Priority",
@@ -369,6 +369,11 @@
                                "uk":  "Створення: {item} x{amount}",
                                "ru":  "Создание: {item} x{amount}"
                            },
+    "GEAR_FARM_BUYING":  {
+                             "en":  "Buying: {item}",
+                             "uk":  "Купівля: {item}",
+                             "ru":  "Покупка: {item}"
+                         },
     "GEAR_FARM_ERROR":  {
                             "en":  "Gear farming stopped because the game returned an error",
                             "uk":  "Фарм спорядження зупинено: гра повернула помилку",
@@ -1845,15 +1850,20 @@
                                     "ru":  "Собрано {count} наград сезонов"
                                 },
     "SELL_HERO_SOULS":  {
-                            "en":  "Sell souls",
-                            "uk":  "Продати душі",
-                            "ru":  "Продать души"
+                            "en":  "Exchange hero soul stones",
+                            "uk":  "Обміняти камені душ героїв",
+                            "ru":  "Обменять камни душ героев"
                         },
     "SELL_HERO_SOULS_TITLE":  {
-                                  "en":  "Exchanges all absolute star hero souls for gold",
-                                  "uk":  "Обмінює всі душі абсолютних героїв на золото",
-                                  "ru":  "Обменивает все души абсолютных героев на золото"
+                                  "en":  "Exchanges surplus soul stones of six-star heroes for Soul Shop coins",
+                                  "uk":  "Обмінює зайві камені душ шестизіркових героїв на монети магазину душ",
+                                  "ru":  "Обменивает лишние камни душ шестизвёздочных героев на монеты магазина душ"
                               },
+    "SOUL_COINS_RECEIVED":  {
+                                "en":  "Soul Shop coins received: {coins}",
+                                "uk":  "Отримано монет магазину душ: {coins}",
+                                "ru":  "Получено монет магазина душ: {coins}"
+                            },
     "GOLD_RECEIVED":  {
                           "en":  "Gold received: {gold}",
                           "uk":  "Золота отримано: {gold}",
